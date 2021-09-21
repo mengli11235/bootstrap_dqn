@@ -47,7 +47,7 @@ def matplotlib_plot_all(p):
     plot_dict_losses({'episode head':{'index':epochs, 'val':p['episode_head']}}, name=os.path.join(model_base_filedir, 'episode_head.png'), rolling_length=0)
 
     episode_loss_mask = np.isfinite(p['episode_loss'])
-    plot_dict_losses({'steps loss':{'index':steps, 'val':np.array(p['episode_loss'])[episode_loss_mask]}}, name=os.path.join(model_base_filedir, 'steps_loss.png'))
+    plot_dict_losses({'steps loss':{'index':np.array(steps)[episode_loss_mask], 'val':np.array(p['episode_loss'])[episode_loss_mask]}}, name=os.path.join(model_base_filedir, 'steps_loss.png'))
 
     plot_dict_losses({'steps eps':{'index':steps, 'val':p['eps_list']}}, name=os.path.join(model_base_filedir, 'steps_mean_eps.png'), rolling_length=0)
     plot_dict_losses({'steps reward':{'index':steps,'val':p['episode_reward']}},  name=os.path.join(model_base_filedir, 'steps_reward.png'), rolling_length=0)
