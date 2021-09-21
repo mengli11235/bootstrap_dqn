@@ -66,9 +66,13 @@ def handle_checkpoint(last_save, cnt):
                  'perf':perf,
                 }
         filename = os.path.abspath(model_base_filepath + "_%010dq.pkl"%cnt)
+        if torch.cuda.is_available():
+            filename = os.path.abspath("/scratch/users/limeng/buffer" + "_%010dq.pkl"%cnt)
         save_checkpoint(state, filename)
         # npz will be added
         buff_filename = os.path.abspath(model_base_filepath + "_%010dq_train_buffer"%cnt)
+        if torch.cuda.is_available():
+                    buff_filename = os.path.abspath("/scratch/users/limeng/buffer" + "_%010dq_train_buffer"%cnt)
         replay_memory.save_buffer(buff_filename)
         print("finished checkpoint", time.time()-st)
         return last_save
@@ -318,7 +322,7 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--model_loadpath', default='', help='.pkl model file full path')
     parser.add_argument('-b', '--buffer_loadpath', default='', help='.npz replay buffer file full path')
     args = parser.parse_args()
-    if torch.cuda.is_available:
+    if torch.cuda.is_available():
         device = 'cuda'
     else:
         device = 'cpu'
