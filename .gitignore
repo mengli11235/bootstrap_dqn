@@ -1,0 +1,25 @@
+*.pyc
+.DS_Store
+
+/temp/
+/.project
+/.pydevproject
+
+# checkpoint
+checkpoints/
+
+# examples
+examples_gan/
+dat/
+data/
+#models
+learned_models/
+pretrained_models/
+
+# For PyCharm users
+.idea/
+
+# stdout
+gpu_out/
+outtest1.log
+errortest1.log
