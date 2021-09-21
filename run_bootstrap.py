@@ -318,7 +318,7 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--model_loadpath', default='', help='.pkl model file full path')
     parser.add_argument('-b', '--buffer_loadpath', default='', help='.npz replay buffer file full path')
     args = parser.parse_args()
-    if args.cuda:
+    if torch.cuda.is_available:
         device = 'cuda'
     else:
         device = 'cpu'
