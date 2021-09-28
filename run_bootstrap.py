@@ -253,6 +253,7 @@ def train(step_number, last_save):
                     target_net.load_state_dict(policy_net.state_dict())
 
             et = time.time()
+            
             ep_time = et-st
             perf['steps'].append(step_number)
             perf['episode_step'].append(step_number-start_steps)

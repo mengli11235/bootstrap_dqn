@@ -79,11 +79,11 @@ def generate_gif(base_dir, step_number, frames_for_gif, reward, name='', results
 
     print("WRITING GIF", gif_fname)
     mimsave(gif_fname, frames_for_gif, duration=1/30)
-    if len(results):
-        txt_fname = gif_fname.replace('.gif', '.txt')
-        ff = open(txt_fname, 'w')
-        for ex in results:
-            ff.write(ex+'\n')
-        ff.close()
+    # if len(results):
+    #     txt_fname = gif_fname.replace('.gif', '.txt')
+    #     ff = open(txt_fname, 'w')
+    #     for ex in results:
+    #         ff.write(ex+'\n')
+    #     ff.close()
 
 
