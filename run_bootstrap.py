@@ -143,7 +143,7 @@ class ActionGetter:
             if step_number >= self.replay_memory_start_size and step_number < self.replay_memory_start_size + self.eps_annealing_frames:
                 eps = self.slope*step_number + self.intercept
             elif step_number >= self.replay_memory_start_size + self.eps_annealing_frames:
-                eps = self.slope_2*step_number + self.intercept_2
+                eps =  self.eps_final #self.slope_2*step_number + self.intercept_2
         else:
             eps = 0
         if self.random_state.rand() < eps:

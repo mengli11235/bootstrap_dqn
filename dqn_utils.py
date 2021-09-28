@@ -86,4 +86,3 @@ def generate_gif(base_dir, step_number, frames_for_gif, reward, name='', results
     #         ff.write(ex+'\n')
     #     ff.close()
 
-
