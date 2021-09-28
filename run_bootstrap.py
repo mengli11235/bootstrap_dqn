@@ -175,6 +175,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
     next_q_target_vals = target_net(next_states, None)
     next_q_policy_vals = policy_net(next_states, None)
     cnt_losses = []
+    if 'entropy' in info['IMPROVEMENT']:
+        entropy_loss = []
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
@@ -189,12 +191,25 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             preds = q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
             targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
+            if 'entropy' in info['IMPROVEMENT']:
+                # loss of H(a|s,z)
+                logits = torch.softmax(q_policy_vals[k], -1)
+                logits = torch.sum(logits*torch.log(logits))
+                l1loss += logits
+                entropy_loss.append(torch.sum(q_policy_vals[k]))
+
             full_loss = masks[:,k]*l1loss
             loss = torch.sum(full_loss/total_used)
             cnt_losses.append(loss)
             losses[k] = loss.cpu().detach().item()
 
     loss = sum(cnt_losses)/info['N_ENSEMBLE']
+    if 'entropy' in info['IMPROVEMENT']:
+        # loss of H(z|s)
+        logits = torch.softmax(entropy_loss, -1)
+        logits = torch.sum(logits*torch.log(logits))
+        loss -= logits
+        
     loss.backward()
     for param in policy_net.core_net.parameters():
         if param.grad is not None:
@@ -382,6 +397,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
+        "IMPROVEMENT": ['entropy'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
