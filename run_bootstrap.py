@@ -206,7 +206,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
     loss = sum(cnt_losses)/info['N_ENSEMBLE']
     if 'entropy' in info['IMPROVEMENT']:
         # loss of H(z|s)
-        logits = torch.softmax(entropy_loss, -1)
+        logits = torch.softmax(torch.stack(entropy_loss), -1)
         logits = torch.sum(logits*torch.log(logits))
         loss -= logits
         
