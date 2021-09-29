@@ -196,7 +196,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
                 logits = torch.softmax(q_policy_vals[k], -1)
                 logits = torch.sum(logits*torch.log(logits))
                 l1loss += 0.0001*logits
-                entropy_loss.append(torch.sum(q_policy_vals[k]))
+                entropy_loss.append(torch.max(q_policy_vals[k]))
 
             full_loss = masks[:,k]*l1loss
             loss = torch.sum(full_loss/total_used)
