@@ -204,11 +204,11 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             losses[k] = loss.cpu().detach().item()
 
     loss = sum(cnt_losses)/info['N_ENSEMBLE']
-    if 'entropy' in info['IMPROVEMENT']:
-        # loss of H(z|s)
-        logits = torch.softmax(torch.stack(entropy_loss), dim=0)
-        logits = torch.mean(torch.sum(logits*torch.log(logits), dim=0))
-        loss -= 0.001*logits
+    # if 'entropy' in info['IMPROVEMENT']:
+    #     # loss of H(z|s)
+    #     logits = torch.softmax(torch.stack(entropy_loss), dim=0)
+    #     logits = torch.mean(torch.sum(logits*torch.log(logits), dim=0))
+    #     loss -= 0.001*logits
         
     loss.backward()
     for param in policy_net.core_net.parameters():
