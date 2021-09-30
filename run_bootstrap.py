@@ -193,10 +193,10 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
             if 'entropy' in info['IMPROVEMENT']:
                 # loss of H(a|s,z)
-                logits = torch.softmax(q_policy_vals[k], -1)
-                logits = torch.sum(logits*torch.log(logits))
-                l1loss += 0.001*logits
-                entropy_loss.append(torch.max(q_policy_vals[k]))
+                logits = torch.softmax(q_policy_vals[k], dim=-1)
+                logits = torch.mean(torch.sum(logits*torch.log(logits), dim=-1))
+                l1loss += 0.01*logits
+                entropy_loss.append(preds)
 
             full_loss = masks[:,k]*l1loss
             loss = torch.sum(full_loss/total_used)
@@ -206,9 +206,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
     loss = sum(cnt_losses)/info['N_ENSEMBLE']
     if 'entropy' in info['IMPROVEMENT']:
         # loss of H(z|s)
-        logits = torch.softmax(torch.stack(entropy_loss), -1)
-        logits = torch.sum(logits*torch.log(logits))
-        loss -= 0.0001*logits
+        logits = torch.softmax(torch.stack(entropy_loss), dim=0)
+        logits = torch.mean(torch.sum(logits*torch.log(logits), dim=0))
+        loss -= 0.01*logits
         
     loss.backward()
     for param in policy_net.core_net.parameters():
