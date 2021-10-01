@@ -80,7 +80,7 @@ def handle_checkpoint(last_save, cnt):
         buff_filename = os.path.abspath(model_base_filepath + "_%010dq_train_buffer"%cnt)
         if torch.cuda.is_available():
                     buff_filename = os.path.abspath("/scratch/users/limeng/buffer" + "_%010dq_train_buffer"%cnt)
-        replay_memory.save_buffer(buff_filename)
+        #replay_memory.save_buffer(buff_filename)
         print("finished checkpoint", time.time()-st)
         return last_save
     else: return last_save
@@ -374,7 +374,7 @@ if __name__ == '__main__':
         "EPS_FINAL_FRAME":0.01,
         "NUM_EVAL_EPISODES":1, # num examples to average in eval
         "BUFFER_SIZE":int(1e6), # Buffer size for experience replay
-        "CHECKPOINT_EVERY_STEPS":500000, # how often to write pkl of model and npz of data buffer
+        "CHECKPOINT_EVERY_STEPS":5000000, # how often to write pkl of model and npz of data buffer
         "EVAL_FREQUENCY":250000, # how often to run evaluation episodes
         "ADAM_LEARNING_RATE":6.25e-5,
         "RMS_LEARNING_RATE": 0.00025, # according to paper = 0.00025
