@@ -213,8 +213,6 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
        logits = torch.softmax(torch.stack(entropy_loss), dim=0)
        logits = torch.mean(torch.sum(logits*torch.log(logits), dim=0))
        loss -= 0.001*logits
-    elif 'soft' in info['IMPROVEMENT']:
-        v = 4 * torch.log(torch.sum(torch.exp(q_value/4), dim=1, keepdim=True))
 
         
     loss.backward()
