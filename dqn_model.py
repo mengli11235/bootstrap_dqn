@@ -141,3 +141,4 @@ class NetWithPrior(nn.Module):
             raise ValueError("Only works with a net_list model")
 
 
+print(torch.max(torch.zeros(3,2),-1).values)
