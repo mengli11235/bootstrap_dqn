@@ -204,10 +204,10 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
 
             if 'entropy' in info['IMPROVEMENT'] and 'soft' not in info['IMPROVEMENT']:
                 # loss of H(a|s,z)
-                logits = torch.softmax(q_policy_vals[k], dim=-1)
+                logits = torch.softmax(prior_q_policy_vals[k], dim=-1)
                 logits = torch.mean(torch.sum(logits*torch.log(logits), dim=-1))
                 l1loss += 0.001*logits
-                entropy_loss.append(torch.max(q_policy_vals[k], dim=-1).values)
+                entropy_loss.append(torch.max(prior_q_policy_vals[k], dim=-1).values)
 
             full_loss = masks[:,k]*l1loss
             loss = torch.sum(full_loss/total_used)
@@ -215,11 +215,11 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             losses[k] = loss.cpu().detach().item()
 
     loss = sum(cnt_losses)/info['N_ENSEMBLE']
-    if 'entropy' in info['IMPROVEMENT']:
-       # loss of H(z|s)
-       logits = torch.softmax(torch.stack(entropy_loss), dim=0)
-       logits = torch.mean(torch.sum(logits*torch.log(logits), dim=0))
-       loss -= 0.001*logits
+#     if 'entropy' in info['IMPROVEMENT']:
+#        # loss of H(z|s)
+#        logits = torch.softmax(torch.stack(entropy_loss), dim=0)
+#        logits = torch.mean(torch.sum(logits*torch.log(logits), dim=0))
+#        loss -= 0.001*logits
 
         
     loss.backward()
@@ -409,7 +409,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['soft'],
+        "IMPROVEMENT": ['entropy'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
