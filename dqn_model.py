@@ -139,6 +139,22 @@ class NetWithPrior(nn.Module):
                     return [n + self.prior_scale * p.detach() for n, p in zip(net_heads, prior_heads)]
         else:
             raise ValueError("Only works with a net_list model")
-
-
-print(torch.max(torch.zeros(3,2),-1).values)
+            
+    def return_prior(self, x, k):
+        if hasattr(self.net, "net_list"):
+            if k is not None:
+                if self.prior_scale > 0.:
+                    return self.prior_scale * self.prior(x, k)
+                else:
+                    return self.prior(x, k)
+            else:
+                core_cache = self.prior._core(x)
+                net_heads = self.prior._heads(core_cache)
+                if self.prior_scale <= 0.:
+                    return net_heads
+                else:
+                    prior_core_cache = self.prior._core(x)
+                    prior_heads = self.prior._heads(prior_core_cache)
+                    return [self.prior_scale * p for p in prior_heads]
+        else:
+            raise ValueError("Only works with a net_list model")
