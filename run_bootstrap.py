@@ -177,7 +177,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
     cnt_losses = []
     if 'entropy' in info['IMPROVEMENT']:
         entropy_loss = []
-    if 'soft' in info['IMPROVEMENT']:
+    if len(info['IMPROVEMENT']):
         prior_q_policy_vals = policy_net.return_prior(states, None)
         prior_next_q_target_vals = target_net.return_prior(next_states, None)
         prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
