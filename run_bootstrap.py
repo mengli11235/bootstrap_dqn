@@ -195,7 +195,6 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
             if 'soft' in info['IMPROVEMENT']:
                 # soft update
-                #prior_preds = prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
                 soft_prior_loss = 4 * torch.log(torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
                 entropy_loss.append(soft_prior_loss)
 
@@ -203,9 +202,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
                 # loss of H(a|s,z)
                 logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
                 logits = torch.sum(logits*torch.log(logits), dim=-1) #batch
-                l1loss += 0.001*logits
+                l1loss += 0.001*logits.mean() #1
 
-            full_loss = masks[:,k]*l1loss
+            full_loss = masks[:,k]*l1loss #batch*1
             loss = torch.sum(full_loss/total_used)
             cnt_losses.append(loss)
             losses[k] = loss.cpu().detach().item()
@@ -213,13 +212,14 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
     loss = sum(cnt_losses)/info['N_ENSEMBLE']
     if 'soft' in info['IMPROVEMENT']:
         # loss of H(z|s)
+        soft_loss = 0.0
         logits = torch.softmax(torch.stack(entropy_loss).transpose(0,1), dim=-1)*masks #k*batch -> batch*k
         logits = torch.sum(logits*torch.log(logits), dim=-1) # batch
         for b in range(info['BATCH_SIZE']):
             total_used = torch.sum(masks[b,:])
             if total_used > 0.0:
-                loss -= 0.001*logits[b]/total_used
-
+                soft_loss -= 0.001*logits[b]/total_used
+        loss += soft_loss/info['BATCH_SIZE']
         
     loss.backward()
     for param in policy_net.core_net.parameters():
@@ -408,7 +408,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['soft'],
+        "IMPROVEMENT": ['entropy'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
