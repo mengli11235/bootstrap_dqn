@@ -212,9 +212,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
 
     loss = sum(cnt_losses)/info['N_ENSEMBLE']
     if 'soft' in info['IMPROVEMENT']:
-       # loss of H(z|s)
-       logits = torch.softmax(torch.stack(entropy_loss).transpose(0,1), dim=-1)*masks #k*batch -> batch*k
-       logits = torch.sum(logits*torch.log(logits), dim=-1) # batch
+        # loss of H(z|s)
+        logits = torch.softmax(torch.stack(entropy_loss).transpose(0,1), dim=-1)*masks #k*batch -> batch*k
+        logits = torch.sum(logits*torch.log(logits), dim=-1) # batch
         for b in range(info['BATCH_SIZE']):
             total_used = torch.sum(masks[b,:])
             if total_used > 0.0:
