@@ -218,7 +218,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
         for b in range(info['BATCH_SIZE']):
             total_used = torch.sum(masks[b,:])
             if total_used > 0.0:
-                loss -= 0.001*logits/total_used
+                loss -= 0.001*logits[b]/total_used
 
         
     loss.backward()
