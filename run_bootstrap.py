@@ -195,9 +195,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
             if 'soft' in info['IMPROVEMENT']:
                 # soft update
-                prior_preds = prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
-                soft_prior_preds = 4 * torch.log(torch.sum(torch.exp(prior_preds/4), dim=1, keepdim=True))
-                entropy_loss.append(soft_prior_preds)
+                #prior_preds = prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
+                soft_prior_loss = 4 * torch.log(torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=1, keepdim=True))
+                entropy_loss.append(soft_prior_loss)
 
             if 'entropy' in info['IMPROVEMENT']:
                 # loss of H(a|s,z)
