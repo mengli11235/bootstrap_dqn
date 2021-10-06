@@ -175,12 +175,10 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
     next_q_target_vals = target_net(next_states, None)
     next_q_policy_vals = policy_net(next_states, None)
     cnt_losses = []
-    if 'entropy' in info['IMPROVEMENT']:
-        entropy_loss = []
     if len(info['IMPROVEMENT']):
         prior_q_policy_vals = policy_net.return_prior(states, None)
-        prior_next_q_target_vals = target_net.return_prior(next_states, None)
-        prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
+        entropy_loss = []
+
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
@@ -197,17 +195,15 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
             if 'soft' in info['IMPROVEMENT']:
                 # soft update
-                 prior_next_q_vals = prior_next_q_target_vals[k].data
-                 prior_preds = prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
-                 prior_next_qs = 4 * torch.log(torch.sum(torch.exp(prior_next_q_vals/4), dim=1, keepdim=True))
-                 l1loss += F.smooth_l1_loss(prior_preds, prior_next_qs, reduction='mean')
+                prior_preds = prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
+                soft_prior_preds = 4 * torch.log(torch.sum(torch.exp(prior_preds/4), dim=1, keepdim=True))
+                entropy_loss.append(soft_prior_preds)
 
-            if 'entropy' in info['IMPROVEMENT'] and 'soft' not in info['IMPROVEMENT']:
+            if 'entropy' in info['IMPROVEMENT']:
                 # loss of H(a|s,z)
                 logits = torch.softmax(prior_q_policy_vals[k], dim=-1)
                 logits = torch.mean(torch.sum(logits*torch.log(logits), dim=-1))
                 l1loss += 0.001*logits
-                entropy_loss.append(torch.max(prior_q_policy_vals[k], dim=-1).values)
 
             full_loss = masks[:,k]*l1loss
             loss = torch.sum(full_loss/total_used)
@@ -215,11 +211,11 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             losses[k] = loss.cpu().detach().item()
 
     loss = sum(cnt_losses)/info['N_ENSEMBLE']
-#     if 'entropy' in info['IMPROVEMENT']:
-#        # loss of H(z|s)
-#        logits = torch.softmax(torch.stack(entropy_loss), dim=0)
-#        logits = torch.mean(torch.sum(logits*torch.log(logits), dim=0))
-#        loss -= 0.001*logits
+    if 'soft' in info['IMPROVEMENT']:
+       # loss of H(z|s)
+       logits = torch.softmax(torch.stack(entropy_loss), dim=0)
+       logits = torch.mean(torch.sum(logits*torch.log(logits), dim=0))
+       loss -= 0.001*logits
 
         
     loss.backward()
@@ -409,7 +405,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['entropy'],
+        "IMPROVEMENT": ['soft'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
