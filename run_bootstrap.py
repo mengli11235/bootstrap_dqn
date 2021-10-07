@@ -199,10 +199,10 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
 
             if 'entropy' in info['IMPROVEMENT']:
                 # # loss of H(a|s,z)
-                # logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
-                # logits = torch.sum(logits*torch.log(logits), dim=-1) #batch
-                # l1loss += 0.001*logits.mean() #1
-                l1loss += 0.001*F.cross_entropy(q_policy_vals[k], next_q_vals)
+                logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
+                logits = torch.sum(torch.log(logits), dim=-1) #batch
+                l1loss += 0.001*logits.mean() #1
+                #l1loss += 0.001*F.cross_entropy(q_policy_vals[k], next_q_target_vals[k])
 
 
             full_loss = masks[:,k]*l1loss #batch*1
