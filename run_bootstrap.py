@@ -190,18 +190,20 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
                 next_qs = next_q_vals.max(1)[0] # max returns a pair
 
             preds = q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
-            if 'soft' in info['IMPROVEMENT']:
-                # soft update
-                next_qs = 4 * torch.log(torch.sum(torch.exp(next_q_vals/4), dim=-1))
-
             targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
+            # if 'soft' in info['IMPROVEMENT']:
+            #     # soft update
+            #     #soft_prior_loss = 4 * torch.log(torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
+            #     soft_prior_loss =torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
 
-            # if 'entropy' in info['IMPROVEMENT']:
-            #     # loss of H(a|s,z)
-            #     logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
-                
-            #     l1loss += 0.001*F.cross_entropy(x, target)
+            if 'entropy' in info['IMPROVEMENT']:
+                # # loss of H(a|s,z)
+                # logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
+                # logits = torch.sum(logits*torch.log(logits), dim=-1) #batch
+                # l1loss += 0.001*logits.mean() #1
+                l1loss += 0.001*F.cross_entropy(q_policy_vals[k], next_q_vals)
+
 
             full_loss = masks[:,k]*l1loss #batch*1
             loss = torch.sum(full_loss/total_used)
@@ -209,7 +211,6 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             losses[k] = loss.cpu().detach().item()
 
     loss = sum(cnt_losses)/info['N_ENSEMBLE']
-        
     loss.backward()
     for param in policy_net.core_net.parameters():
         if param.grad is not None:
