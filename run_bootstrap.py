@@ -177,7 +177,6 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
     cnt_losses = []
     if len(info['IMPROVEMENT']):
         prior_q_policy_vals = policy_net.return_prior(states, None)
-        entropy_loss = []
 
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
@@ -191,20 +190,18 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
                 next_qs = next_q_vals.max(1)[0] # max returns a pair
 
             preds = q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
-            targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
-            l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
             if 'soft' in info['IMPROVEMENT']:
                 # soft update
-                #soft_prior_loss = 4 * torch.log(torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
-                soft_prior_loss = torch.sum(prior_q_policy_vals[k], dim=-1)
+                next_qs = 4 * torch.log(torch.sum(torch.exp(next_q_vals/4), dim=-1))
 
-                entropy_loss.append(soft_prior_loss)
+            targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
+            l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
 
-            if 'entropy' in info['IMPROVEMENT']:
-                # loss of H(a|s,z)
-                logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
-                logits = torch.sum(logits*torch.log(logits), dim=-1) #batch
-                l1loss += 0.001*logits.mean() #1
+            # if 'entropy' in info['IMPROVEMENT']:
+            #     # loss of H(a|s,z)
+            #     logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
+                
+            #     l1loss += 0.001*F.cross_entropy(x, target)
 
             full_loss = masks[:,k]*l1loss #batch*1
             loss = torch.sum(full_loss/total_used)
@@ -212,16 +209,6 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             losses[k] = loss.cpu().detach().item()
 
     loss = sum(cnt_losses)/info['N_ENSEMBLE']
-    if 'soft' in info['IMPROVEMENT']:
-        # loss of H(z|s)
-        soft_loss = 0.0
-        logits = torch.softmax(torch.stack(entropy_loss).transpose(0,1), dim=-1)*masks #k*batch -> batch*k
-        logits = torch.sum(logits*torch.log(logits), dim=-1) # batch
-        for b in range(info['BATCH_SIZE']):
-            total_used = torch.sum(masks[b,:])
-            if total_used > 0.0:
-                soft_loss -= 0.001*logits[b]/total_used
-        loss += soft_loss/info['BATCH_SIZE']
         
     loss.backward()
     for param in policy_net.core_net.parameters():
