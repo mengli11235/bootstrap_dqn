@@ -161,16 +161,18 @@ class ActionGetter:
                 action = data.most_common(1)[0][0]
                 return eps, action
 
-def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
+def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads, masks):
     states = torch.Tensor(states.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
     next_states = torch.Tensor(next_states.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
     rewards = torch.Tensor(rewards).to(info['DEVICE'])
     actions = torch.LongTensor(actions).to(info['DEVICE'])
     terminal_flags = torch.Tensor(terminal_flags.astype(np.int)).to(info['DEVICE'])
+    active_heads = torch.LongTensor(active_heads).to(info['DEVICE'])
     masks = torch.FloatTensor(masks.astype(np.int)).to(info['DEVICE'])
     # min history to learn is 200,000 frames in dqn - 50000 steps
     losses = [0.0 for _ in range(info['N_ENSEMBLE'])]
     opt.zero_grad()
+    opt_discriminator.zero_grad()
     q_policy_vals = policy_net(states, None)
     next_q_target_vals = target_net(next_states, None)
     next_q_policy_vals = policy_net(next_states, None)
@@ -179,6 +181,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
         prior_q_policy_vals = policy_net.return_prior(states, None)
         prior_next_q_target_vals = target_net.return_prior(next_states, None)
         prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
+    if 'discriminator' in info['IMPROVEMENT']:
+        logits = discriminator(states, 0)
+        discriminator_loss = ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
@@ -203,12 +208,11 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
 #                 logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
 #                 logits = torch.sum(logits*torch.log(logits), dim=-1) #batch
 #                 l1loss += 0.001*logits.mean() #1
-                preds = prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
+                preds = prior_q_policy_vals[k]
                 #next_qs = 4 * torch.log(torch.sum(torch.exp(prior_next_q_target_vals[k]/4), dim=-1))
-                next_qs = prior_next_q_target_vals[k].data.gather(1, next_actions).squeeze(1)
-                targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
-                l1loss += F.smooth_l1_loss(preds, targets, reduction='mean')
-
+                next_qs = prior_next_q_target_vals[k].data
+                targets = -discriminator_loss.detach() + info['GAMMA'] * next_qs * (1-terminal_flags)
+                l1loss += F.smooth_l1_loss(preds, targets)
 
             full_loss = masks[:,k]*l1loss #batch*1
             loss = torch.sum(full_loss/total_used)
@@ -222,7 +226,12 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, masks):
             # divide grads in core
             param.grad.data *=1.0/float(info['N_ENSEMBLE'])
     nn.utils.clip_grad_norm_(policy_net.parameters(), info['CLIP_GRAD'])
+    nn.utils.clip_grad_norm_(discriminator.parameters(), info['CLIP_GRAD'])
+
     opt.step()
+    if 'discriminator' in info['IMPROVEMENT']:
+        discriminator_loss.backward()
+        opt_discriminator.step()
     return np.mean(losses)
 
 def train(step_number, last_save):
@@ -257,7 +266,8 @@ def train(step_number, last_save):
                 replay_memory.add_experience(action=action,
                                                 frame=next_state[-1],
                                                 reward=np.sign(reward), # TODO -maybe there should be +1 here
-                                                terminal=life_lost)
+                                                terminal=life_lost,
+                                                active_head= active_head)
 
                 step_number += 1
                 epoch_frame += 1
@@ -265,13 +275,14 @@ def train(step_number, last_save):
                 state = next_state
 
                 if step_number % info['LEARN_EVERY_STEPS'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
-                    _states, _actions, _rewards, _next_states, _terminal_flags, _masks = replay_memory.get_minibatch(info['BATCH_SIZE'])
-                    ptloss = ptlearn(_states, _actions, _rewards, _next_states, _terminal_flags, _masks)
+                    _states, _actions, _rewards, _next_states, _terminal_flags, _active_heads, _masks = replay_memory.get_minibatch(info['BATCH_SIZE'])
+                    ptloss = ptlearn(_states, _actions, _rewards, _next_states, _terminal_flags, _active_heads, _masks)
                     ptloss_list.append(ptloss)
                 if step_number % info['TARGET_UPDATE'] == 0 and step_number >  info['MIN_HISTORY_TO_LEARN']:
                     print("++++++++++++++++++++++++++++++++++++++++++++++++")
                     print('updating target network at %s'%step_number)
                     target_net.load_state_dict(policy_net.state_dict())
+                    prior_target_net.load_state_dict(prior_net.state_dict())
 
             et = time.time()
             
@@ -403,7 +414,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['entropy'],
+        "IMPROVEMENT": ['entropy', 'discriminator'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
@@ -494,12 +505,22 @@ if __name__ == '__main__':
                                 n_actions=env.num_actions,
                                 network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                 num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
+        prior_target_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
+                                n_actions=env.num_actions,
+                                network_output_size=info['NETWORK_INPUT_SIZE'][0],
+                                num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
 
+        discriminator = EnsembleNet(n_ensemble=1,
+                                n_actions=info['N_ENSEMBLE'],
+                                network_output_size=info['NETWORK_INPUT_SIZE'][0],
+                                num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
         print("using randomized prior")
         policy_net = NetWithPrior(policy_net, prior_net, info['PRIOR_SCALE'])
-        target_net = NetWithPrior(target_net, prior_net, info['PRIOR_SCALE'])
+        target_net = NetWithPrior(target_net, prior_target_net, info['PRIOR_SCALE'])
 
     target_net.load_state_dict(policy_net.state_dict())
+    prior_target_net.load_state_dict(prior_net.state_dict())
+
     # create optimizer
     #opt = optim.RMSprop(policy_net.parameters(),
     #                    lr=info["RMS_LEARNING_RATE"],
@@ -508,7 +529,10 @@ if __name__ == '__main__':
     #                    centered=info["RMS_CENTERED"],
     #                    alpha=info["RMS_DECAY"])
     opt = optim.Adam(policy_net.parameters(), lr=info['ADAM_LEARNING_RATE'])
+    opt_discriminator = optim.Adam(discriminator.parameters(), lr=info['ADAM_LEARNING_RATE'])
 
+    kl_loss = nn.KLDivLoss()
+    ce_loss = nn.CrossEntropyLoss()
     if args.model_loadpath is not '':
         # what about random states - they will be wrong now???
         # TODO - what about target net update cnt

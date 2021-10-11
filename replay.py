@@ -29,6 +29,8 @@ class ReplayMemory:
         # Pre-allocate memory
         self.actions = np.empty(self.size, dtype=np.int32)
         self.rewards = np.empty(self.size, dtype=np.float32)
+        self.active_heads = np.empty(self.size, dtype=np.float32)
+
         self.frames = np.empty((self.size, self.frame_height, self.frame_width), dtype=np.uint8)
         self.terminal_flags = np.empty(self.size, dtype=np.bool)
         self.masks = np.empty((self.size, self.num_heads), dtype=np.bool)
@@ -48,7 +50,7 @@ class ReplayMemory:
         print("starting save of buffer to %s"%filepath, st)
         np.savez(filepath,
                  frames=self.frames, actions=self.actions, rewards=self.rewards,
-                 terminal_flags=self.terminal_flags, masks=self.masks,
+                 terminal_flags=self.terminal_flags, active_heads = self.active_heads, masks=self.masks,
                  count=self.count, current=self.current,
                  agent_history_length=self.agent_history_length,
                  frame_height=self.frame_height, frame_width=self.frame_width,
@@ -64,6 +66,7 @@ class ReplayMemory:
         self.actions = npfile['actions']
         self.rewards = npfile['rewards']
         self.terminal_flags = npfile['terminal_flags']
+        self.active_heads = npfile['active_heads']
         self.masks = npfile['masks']
         self.count = npfile['count']
         self.current = npfile['current']
@@ -77,7 +80,7 @@ class ReplayMemory:
         print("finished loading buffer", time.time()-st)
         print("loaded buffer current is", self.current)
 
-    def add_experience(self, action, frame, reward, terminal):
+    def add_experience(self, action, frame, reward, terminal, active_head):
         """
         Args:
             action: An integer between 0 and env.action_space.n - 1
@@ -92,6 +95,8 @@ class ReplayMemory:
         self.frames[self.current, ...] = frame
         self.rewards[self.current] = reward
         self.terminal_flags[self.current] = terminal
+        self.active_heads[self.current] = active_head
+
         mask = self.random_state.binomial(1, self.bernoulli_probability, self.num_heads)
         self.masks[self.current] = mask
         self.count = max(self.count, self.current+1)
@@ -140,6 +145,6 @@ class ReplayMemory:
         for i, idx in enumerate(self.indices):
             self.states[i] = self._get_state(idx - 1)
             self.new_states[i] = self._get_state(idx)
-        return self.states, self.actions[self.indices], self.rewards[self.indices], self.new_states, self.terminal_flags[self.indices], self.masks[self.indices]
+        return self.states, self.actions[self.indices], self.rewards[self.indices], self.new_states, self.terminal_flags[self.indices], self.active_heads[self.indices], self.masks[self.indices]
 
 
