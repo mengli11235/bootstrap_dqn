@@ -183,7 +183,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
     if 'discriminator' in info['IMPROVEMENT']:
         logits = discriminator(states, 0)
-        discriminator_loss = ce_loss(logits, active_heads)
+        discriminator_loss = 0.01*ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
