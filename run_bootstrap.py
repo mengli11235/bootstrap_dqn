@@ -174,7 +174,6 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     # min history to learn is 200,000 frames in dqn - 50000 steps
     losses = [0.0 for _ in range(info['N_ENSEMBLE'])]
     opt.zero_grad()
-    opt_discriminator.zero_grad()
     q_policy_vals = policy_net(states, None)
     next_q_target_vals = target_net(next_states, None)
     next_q_policy_vals = policy_net(next_states, None)
@@ -184,6 +183,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         prior_next_q_target_vals = target_net.return_prior(next_states, None)
         prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
     if 'discriminator' in info['IMPROVEMENT']:
+        opt_discriminator.zero_grad()
         logits = discriminator(states, 0)
         discriminator_loss = 0.001*ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
@@ -422,7 +422,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['entropy', 'discriminator'],
+        "IMPROVEMENT": [],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
