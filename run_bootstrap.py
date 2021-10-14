@@ -60,6 +60,8 @@ def matplotlib_plot_all(p):
 
     plot_dict_losses({'eval rewards':{'index':np.array(p['eval_steps'])[eval_steps_mask], 'val':np.array(p['eval_rewards'])[eval_rewards_mask]}}, name=os.path.join(model_base_filedir, 'eval_rewards_steps.png'), rolling_length=0)
 
+    plot_dict_losses({'eval states':{'index':np.array(p['eval_steps'])[eval_steps_mask], 'val':np.array(p['eval_num_states'])[eval_rewards_mask]}}, name=os.path.join(model_base_filedir, 'eval_num_states_steps.png'), rolling_length=0)
+
 def handle_checkpoint(last_save, cnt):
     if (cnt-last_save) >= info['CHECKPOINT_EVERY_STEPS']:
         st = time.time()
@@ -208,7 +210,10 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
 #                 logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
 #                 logits = torch.sum(logits*torch.log(logits), dim=-1) #batch
 #                 l1loss += 0.001*logits.mean() #1
-                preds = 4 * torch.log(torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
+                #preds = 4 * torch.log(torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
+                preds = prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
+
+
                 next_qs = 4 * torch.log(torch.sum(torch.exp(prior_next_q_target_vals[k].data/4), dim=-1))
                 targets = -discriminator_loss.detach() + info['GAMMA'] * next_qs * (1-terminal_flags)
                 l1loss += F.smooth_l1_loss(preds, targets)
@@ -308,6 +313,7 @@ def train(step_number, last_save):
                     print(len(perf['episode_reward']), step_number, perf['avg_rewards'][-1], file=reward_file)
         avg_eval_reward = evaluate(step_number)
         perf['eval_rewards'].append(avg_eval_reward)
+        perf['eval_num_states'].append(len(eval_states))
         perf['eval_steps'].append(step_number)
         matplotlib_plot_all(perf)
 
@@ -334,6 +340,8 @@ def evaluate(step_number):
             else:
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=None, evaluation=True)
             next_state, reward, life_lost, terminal = env.step(action)
+            if next_state[-1] not in eval_states:
+                eval_states.append(next_state[-1])
             evaluate_step_number += 1
             episode_steps +=1
             episode_reward_sum += reward
@@ -533,6 +541,7 @@ if __name__ == '__main__':
 
     kl_loss = nn.KLDivLoss()
     ce_loss = nn.CrossEntropyLoss()
+    eval_states = []
     if args.model_loadpath is not '':
         # what about random states - they will be wrong now???
         # TODO - what about target net update cnt
