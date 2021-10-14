@@ -480,6 +480,7 @@ if __name__ == '__main__':
                 'episode_times':[],
                 'episode_relative_times':[],
                 'eval_rewards':[],
+                'eval_num_states':[],
                 'eval_steps':[]}
 
         start_step_number = 0
