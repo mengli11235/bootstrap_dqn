@@ -340,8 +340,8 @@ def evaluate(step_number):
             else:
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=None, evaluation=True)
             next_state, reward, life_lost, terminal = env.step(action)
-            if next_state[-1] not in eval_states:
-                eval_states.append(next_state[-1])
+            if repr(next_state[-1]) not in eval_states:
+                eval_states.append(repr(next_state[-1]))
             evaluate_step_number += 1
             episode_steps +=1
             episode_reward_sum += reward
@@ -422,7 +422,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": [],
+        "IMPROVEMENT": ['entropy', 'discriminator'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
