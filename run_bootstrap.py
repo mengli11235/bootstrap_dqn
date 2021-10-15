@@ -231,11 +231,11 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             # divide grads in core
             param.grad.data *=1.0/float(info['N_ENSEMBLE'])
     nn.utils.clip_grad_norm_(policy_net.parameters(), info['CLIP_GRAD'])
-    nn.utils.clip_grad_norm_(discriminator.parameters(), info['CLIP_GRAD'])
 
     opt.step()
     if 'discriminator' in info['IMPROVEMENT']:
         discriminator_loss.backward()
+        nn.utils.clip_grad_norm_(discriminator.parameters(), info['CLIP_GRAD'])
         opt_discriminator.step()
     return np.mean(losses)
 
@@ -287,7 +287,7 @@ def train(step_number, last_save):
                     print("++++++++++++++++++++++++++++++++++++++++++++++++")
                     print('updating target network at %s'%step_number)
                     target_net.load_state_dict(policy_net.state_dict())
-                    prior_target_net.load_state_dict(prior_net.state_dict())
+                    #prior_target_net.load_state_dict(prior_net.state_dict())
 
             et = time.time()
             
@@ -528,7 +528,7 @@ if __name__ == '__main__':
         target_net = NetWithPrior(target_net, prior_target_net, info['PRIOR_SCALE'])
 
     target_net.load_state_dict(policy_net.state_dict())
-    prior_target_net.load_state_dict(prior_net.state_dict())
+    #prior_target_net.load_state_dict(prior_net.state_dict())
 
     # create optimizer
     #opt = optim.RMSprop(policy_net.parameters(),
