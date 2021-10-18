@@ -198,7 +198,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 next_qs = next_q_vals.max(1)[0] # max returns a pair
 
             preds = q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
-            targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
+            targets = -discriminator_loss.detach() + info['GAMMA'] * next_qs * (1-terminal_flags)
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
             # if 'soft' in info['IMPROVEMENT']:
             #     # soft update
