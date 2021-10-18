@@ -309,8 +309,8 @@ def train(step_number, last_save):
                 print('last rewards', perf['episode_reward'][-info['PLOT_EVERY_EPISODES']:])
 
                 matplotlib_plot_all(perf)
-                with open('rewards.txt', 'a') as reward_file:
-                    print(len(perf['episode_reward']), step_number, perf['avg_rewards'][-1], file=reward_file)
+#                 with open('rewards.txt', 'a') as reward_file:
+#                     print(len(perf['episode_reward']), step_number, perf['avg_rewards'][-1], file=reward_file)
         avg_eval_reward = evaluate(step_number)
         perf['eval_rewards'].append(avg_eval_reward)
         perf['eval_num_states'].append(len(eval_states))
@@ -360,7 +360,7 @@ def evaluate(step_number):
     # Show the evaluation score in tensorboard
     efile = os.path.join(model_base_filedir, 'eval_rewards.txt')
     with open(efile, 'a') as eval_reward_file:
-        print(step_number, np.mean(eval_rewards), file=eval_reward_file)
+        print(step_number, np.mean(eval_rewards), len(eval_states), file=eval_reward_file)
     return np.mean(eval_rewards)
 
 if __name__ == '__main__':
