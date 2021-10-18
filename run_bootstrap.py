@@ -198,7 +198,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 next_qs = next_q_vals.max(1)[0] # max returns a pair
 
             preds = q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
-            targets = -discriminator_loss.detach() + info['GAMMA'] * next_qs * (1-terminal_flags)
+            targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
             # if 'soft' in info['IMPROVEMENT']:
             #     # soft update
@@ -422,7 +422,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['discriminator'],
+        "IMPROVEMENT": ['discriminator', 'entropy'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
