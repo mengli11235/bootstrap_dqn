@@ -184,8 +184,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
     if 'discriminator' in info['IMPROVEMENT']:
         opt_discriminator.zero_grad()
-        logits = discriminator(states, 0)
-        discriminator_loss = 0.001*ce_loss(logits, active_heads)
+        logits = torch.softmax(discriminator(states, 0), dim=-1)
+        discriminator_loss = ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
@@ -210,8 +210,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
 #                 logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
 #                 logits = torch.sum(logits*torch.log(logits), dim=-1) #batch
 #                 l1loss += 0.001*logits.mean() #1
-                preds = 4 * torch.log(torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
-                #preds = 0.001*prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
+                #preds = 4 * torch.log(torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
+                preds = 1*prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
 
 
                 next_qs = 4 * torch.log(torch.sum(torch.exp(prior_next_q_target_vals[k].data/4), dim=-1))
