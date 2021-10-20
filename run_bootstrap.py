@@ -159,8 +159,13 @@ class ActionGetter:
             else:
                 # vote
                 acts = [torch.argmax(vals[h],dim=1).item() for h in range(info['N_ENSEMBLE'])]
-                data = Counter(acts)
-                action = data.most_common(1)[0][0]
+                if 'discriminator' in info['IMPROVEMENT']:
+                    logits = discriminator(state)
+                    action_head = torch.argmax(logits, dim=-1).item()
+                    action = acts[action_head]
+                else:
+                    data = Counter(acts)
+                    action = data.most_common(1)[0][0]
                 return eps, action
 
 def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads, masks):
@@ -341,8 +346,8 @@ def evaluate(step_number):
             else:
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=None, evaluation=True)
             next_state, reward, life_lost, terminal = env.step(action)
-            if repr(next_state[-1]) not in eval_states:
-                eval_states.append(repr(next_state[-1]))
+            if repr(next_state) not in eval_states:
+                eval_states.append(repr(next_state))
             evaluate_step_number += 1
             episode_steps +=1
             episode_reward_sum += reward
@@ -379,13 +384,13 @@ if __name__ == '__main__':
 
     info = {
         #"GAME":'roms/breakout.bin', # gym prefix
-        "GAME":'roms/pong.bin', # gym prefix
+        "GAME":'roms/breakout.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "DUELING":True, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
-        "PRIOR_SCALE":1, # what to scale prior by
+        "PRIOR_SCALE":10, # what to scale prior by
         "N_ENSEMBLE":9, # number of bootstrap heads to use. when 1, this is a normal dqn
         "LEARN_EVERY_STEPS":4, # updates every 4 steps in osband
         "BERNOULLI_PROBABILITY": 0.9, # Probability of experience to go to each head - if 1, every experience goes to every head
