@@ -160,7 +160,7 @@ class ActionGetter:
                 # vote
                 acts = [torch.argmax(vals[h],dim=1).item() for h in range(info['N_ENSEMBLE'])]
                 if 'discriminator' in info['IMPROVEMENT']:
-                    logits = discriminator(state)
+                    logits = discriminator(state, 0)
                     action_head = torch.argmax(logits, dim=-1).item()
                     action = acts[action_head]
                 else:
@@ -428,7 +428,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": [ ],
+        "IMPROVEMENT": ['discriminator', ],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
