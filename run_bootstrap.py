@@ -243,7 +243,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         discriminator_loss.backward()
         nn.utils.clip_grad_norm_(discriminator.parameters(), info['CLIP_GRAD'])
         opt_discriminator.step()
-    return np.mean(losses)
+    return np.mean(losses)+discriminator_loss.detach().item()
 
 def train(step_number, last_save):
     """Contains the training and evaluation loops"""
@@ -528,7 +528,7 @@ if __name__ == '__main__':
         discriminator = EnsembleNet(n_ensemble=1,
                                 n_actions=info['N_ENSEMBLE'],
                                 network_output_size=info['NETWORK_INPUT_SIZE'][0],
-                                num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
+                                num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
         print("using randomized prior")
         policy_net = NetWithPrior(policy_net, prior_net, info['PRIOR_SCALE'])
         target_net = NetWithPrior(target_net, prior_target_net, info['PRIOR_SCALE'])
