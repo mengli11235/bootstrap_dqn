@@ -191,7 +191,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         opt_discriminator.zero_grad()
         logits = torch.softmax(discriminator(states, 0), dim=-1)
         masks = logits.detach()
-        discriminator_loss = ce_loss(logits, active_heads)
+        discriminator_loss = 0.01*ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
