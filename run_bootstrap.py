@@ -136,6 +136,7 @@ class ActionGetter:
         Returns:
             An integer between 0 and n_actions
         """
+        state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
         if 'discriminator' in info['IMPROVEMENT']:
             logits = discriminator(state, 0)
             action_head = torch.argmax(logits, dim=-1).item()
@@ -155,7 +156,7 @@ class ActionGetter:
         if self.random_state.rand() < eps or action_head == active_head:
             return eps, self.random_state.randint(0, self.n_actions)
         else:
-            state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
+            #state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
             vals = policy_net(state, active_head)
             if active_head is not None:
                 action = torch.argmax(vals, dim=1).item()
