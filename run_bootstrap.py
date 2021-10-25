@@ -136,10 +136,11 @@ class ActionGetter:
         Returns:
             An integer between 0 and n_actions
         """
-        state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
-        if 'discriminator' in info['IMPROVEMENT']:
-            logits = discriminator(state, 0)
-            action_head = torch.argmax(logits, dim=-1).item()
+        #state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
+        # if 'discriminator' in info['IMPROVEMENT']:
+        #     logits = discriminator(state, 0)
+        #     #logits = torch.softmax(discriminator(states, 0), dim=-1)
+        #     action_head = torch.argmax(logits, dim=-1).item()
 
         if evaluation:
             eps = self.eps_evaluation
@@ -153,10 +154,10 @@ class ActionGetter:
                 eps =  self.eps_final #self.slope_2*step_number + self.intercept_2
         else:
             eps = 0
-        if self.random_state.rand() < eps or action_head != active_head:
+        if self.random_state.rand() < eps: #or action_head == active_head:
             return eps, self.random_state.randint(0, self.n_actions)
         else:
-            #state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
+            state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
             vals = policy_net(state, active_head)
             if active_head is not None:
                 action = torch.argmax(vals, dim=1).item()
@@ -188,14 +189,14 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     next_q_target_vals = target_net(next_states, None)
     next_q_policy_vals = policy_net(next_states, None)
     cnt_losses = []
-    if len(info['IMPROVEMENT']):
+    if 'entropy' in info['IMPROVEMENT']:
         prior_q_policy_vals = policy_net.return_prior(states, None)
         prior_next_q_target_vals = target_net.return_prior(next_states, None)
         prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
     if 'discriminator' in info['IMPROVEMENT']:
         opt_discriminator.zero_grad()
         logits = torch.softmax(discriminator(states, 0), dim=-1)
-        #masks = logits.detach()
+        masks = 1-logits.detach()
         discriminator_loss = ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
@@ -351,8 +352,8 @@ def evaluate(step_number):
             else:
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=None, evaluation=True)
             next_state, reward, life_lost, terminal = env.step(action)
-            if repr(next_state) not in eval_states:
-                eval_states.append(repr(next_state))
+            if repr(next_state[-1]) not in eval_states:
+                eval_states.append(repr(next_state[-1]))
             evaluate_step_number += 1
             episode_steps +=1
             episode_reward_sum += reward
