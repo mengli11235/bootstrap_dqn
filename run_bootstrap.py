@@ -136,6 +136,10 @@ class ActionGetter:
         Returns:
             An integer between 0 and n_actions
         """
+        if 'discriminator' in info['IMPROVEMENT']:
+            logits = discriminator(state, 0)
+            action_head = torch.argmax(logits, dim=-1).item()
+
         if evaluation:
             eps = self.eps_evaluation
         elif step_number < self.replay_memory_start_size:
@@ -148,7 +152,7 @@ class ActionGetter:
                 eps =  self.eps_final #self.slope_2*step_number + self.intercept_2
         else:
             eps = 0
-        if self.random_state.rand() < eps:
+        if self.random_state.rand() < eps or action_head != active_head:
             return eps, self.random_state.randint(0, self.n_actions)
         else:
             state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
@@ -159,13 +163,13 @@ class ActionGetter:
             else:
                 # vote
                 acts = [torch.argmax(vals[h],dim=1).item() for h in range(info['N_ENSEMBLE'])]
-                if 'discriminator' in info['IMPROVEMENT']:
-                    logits = discriminator(state, 0)
-                    action_head = torch.argmax(logits, dim=-1).item()
-                    action = acts[action_head]
-                else:
-                    data = Counter(acts)
-                    action = data.most_common(1)[0][0]
+                # if 'discriminator' in info['IMPROVEMENT']:
+                #     #logits = discriminator(state, 0)
+                #     action_head = torch.argmax(logits, dim=-1).item()
+                #     action = acts[action_head]
+                # else:
+                data = Counter(acts)
+                action = data.most_common(1)[0][0]
                 return eps, action
 
 def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads, masks):
@@ -190,8 +194,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     if 'discriminator' in info['IMPROVEMENT']:
         opt_discriminator.zero_grad()
         logits = torch.softmax(discriminator(states, 0), dim=-1)
-        masks = logits.detach()
-        discriminator_loss = 0.01*ce_loss(logits, active_heads)
+        #masks = logits.detach()
+        discriminator_loss = ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
