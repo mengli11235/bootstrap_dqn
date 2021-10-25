@@ -153,7 +153,7 @@ class ActionGetter:
                 eps =  self.eps_final #self.slope_2*step_number + self.intercept_2
         else:
             eps = 0
-        if self.random_state.rand() < eps or action_head == active_head:
+        if self.random_state.rand() < eps or action_head != active_head:
             return eps, self.random_state.randint(0, self.n_actions)
         else:
             #state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
