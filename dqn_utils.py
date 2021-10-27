@@ -85,6 +85,3 @@ def generate_gif(base_dir, step_number, frames_for_gif, reward, name='', results
     #     for ex in results:
     #         ff.write(ex+'\n')
     #     ff.close()
-git = []
-git.append(repr([[1,3,4],[3,6,4]][-1]))
-print(repr([3,6,4]) not in git)
