@@ -352,8 +352,8 @@ def evaluate(step_number):
             else:
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=None, evaluation=True)
             next_state, reward, life_lost, terminal = env.step(action)
-            if repr(next_state[-1]) not in eval_states:
-                eval_states.append(repr(next_state[-1]))
+            if next_state[-1].tobytes() not in eval_states:
+                eval_states.append(next_state[-1].tobytes())
             evaluate_step_number += 1
             episode_steps +=1
             episode_reward_sum += reward
