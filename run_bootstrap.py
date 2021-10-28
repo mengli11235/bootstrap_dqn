@@ -249,7 +249,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         discriminator_loss.backward()
         nn.utils.clip_grad_norm_(discriminator.parameters(), info['CLIP_GRAD'])
         opt_discriminator.step()
-    return np.mean(losses)+discriminator_loss.detach().item()
+    return np.mean(losses)#+discriminator_loss.detach().item()
 
 def train(step_number, last_save):
     """Contains the training and evaluation loops"""
@@ -434,7 +434,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['discriminator', ],
+        "IMPROVEMENT": [],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
