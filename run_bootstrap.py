@@ -151,7 +151,7 @@ class ActionGetter:
             if step_number >= self.replay_memory_start_size and step_number < self.replay_memory_start_size + self.eps_annealing_frames:
                 eps = self.slope*step_number + self.intercept
             elif step_number >= self.replay_memory_start_size + self.eps_annealing_frames:
-                eps =  self.eps_final #self.slope_2*step_number + self.intercept_2
+                eps = self.slope_2*step_number + self.intercept_2
         else:
             eps = 0
         if self.random_state.rand() < eps: #or action_head == active_head:
@@ -404,7 +404,7 @@ if __name__ == '__main__':
         "MIN_HISTORY_TO_LEARN":50000, # in environment frames
         "NORM_BY":255.,  # divide the float(of uint) by this number to normalize - max val of data is 255
         "EPS_INITIAL":1.0, # should be 1
-        "EPS_FINAL":0.01, # 0.01 in osband
+        "EPS_FINAL":0.2, # 0.01 in osband
         "EPS_EVAL":0.0, # 0 in osband, .05 in others....
         "EPS_ANNEALING_FRAMES":int(1e6), # this may have been 1e6 in osband
         #"EPS_ANNEALING_FRAMES":0, # if it annealing is zero, then it will only use the bootstrap after the first MIN_EXAMPLES_TO_LEARN steps which are random
