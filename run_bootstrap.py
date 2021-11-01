@@ -196,7 +196,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     if 'discriminator' in info['IMPROVEMENT']:
         opt_discriminator.zero_grad()
         logits = torch.softmax(discriminator(states, 0), dim=-1)
-        masks = 1-logits.detach()
+        #masks = 1-logits.detach()
         discriminator_loss = ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
@@ -226,7 +226,11 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 preds = 1*prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
 
 
-                next_qs = 4 * torch.log(torch.sum(torch.exp(prior_next_q_target_vals[k].data/4), dim=-1))
+                #next_qs = 4 * torch.log(torch.sum(torch.exp(prior_next_q_target_vals[k].data/4), dim=-1))
+                prior_next_actions = prior_next_q_policy_vals[k].data.max(1, True)[1]
+
+                next_qs = prior_next_q_target_vals[k].data.gather(1, prior_next_actions).squeeze(1)
+
                 targets = -discriminator_loss.detach() + info['GAMMA'] * next_qs * (1-terminal_flags)
                 l1loss += F.smooth_l1_loss(preds, targets)
                 #l1loss += kl_loss(torch.softmax(prior_q_policy_vals[k], dim=-1),torch.softmax(prior_next_q_target_vals[k].data, dim=-1))-discriminator_loss.detach()
@@ -404,7 +408,7 @@ if __name__ == '__main__':
         "MIN_HISTORY_TO_LEARN":50000, # in environment frames
         "NORM_BY":255.,  # divide the float(of uint) by this number to normalize - max val of data is 255
         "EPS_INITIAL":1.0, # should be 1
-        "EPS_FINAL":0.2, # 0.01 in osband
+        "EPS_FINAL":0.01, # 0.01 in osband
         "EPS_EVAL":0.0, # 0 in osband, .05 in others....
         "EPS_ANNEALING_FRAMES":int(1e6), # this may have been 1e6 in osband
         #"EPS_ANNEALING_FRAMES":0, # if it annealing is zero, then it will only use the bootstrap after the first MIN_EXAMPLES_TO_LEARN steps which are random
@@ -434,7 +438,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['discriminator', ],
+        "IMPROVEMENT": ['discriminator', 'entropy'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
