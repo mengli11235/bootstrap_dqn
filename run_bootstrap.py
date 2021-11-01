@@ -232,7 +232,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 next_qs = prior_next_q_target_vals[k].data.gather(1, prior_next_actions).squeeze(1)
 
                 #targets = -discriminator_loss.detach() + info['GAMMA'] * next_qs * (1-terminal_flags)
-                targets = logits[k].detach() + info['GAMMA'] * next_qs * (1-terminal_flags)
+                targets = logits[:,k].detach() + info['GAMMA'] * next_qs * (1-terminal_flags)
 
                 l1loss += F.smooth_l1_loss(preds, targets)
                 #l1loss += kl_loss(torch.softmax(prior_q_policy_vals[k], dim=-1),torch.softmax(prior_next_q_target_vals[k].data, dim=-1))-discriminator_loss.detach()
