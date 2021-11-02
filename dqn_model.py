@@ -118,25 +118,25 @@ class NetWithPrior(nn.Module):
         # used when scaling core net
         self.core_net = self.net.core_net
         self.prior_scale = prior_scale
-        if self.prior_scale > 0.:
+        if sum(self.prior_scale) > 0.:
             self.prior = prior
 
     def forward(self, x, k):
         if hasattr(self.net, "net_list"):
             if k is not None:
-                if self.prior_scale > 0.:
-                    return self.net(x, k) + self.prior_scale * self.prior(x, k).detach()
+                if self.prior_scale[k] > 0.:
+                    return self.net(x, k) + self.prior_scale[k] * self.prior(x, k).detach()
                 else:
                     return self.net(x, k)
             else:
                 core_cache = self.net._core(x)
                 net_heads = self.net._heads(core_cache)
-                if self.prior_scale <= 0.:
+                if sum(self.prior_scale) <= 0.:
                     return net_heads
                 else:
                     prior_core_cache = self.prior._core(x)
                     prior_heads = self.prior._heads(prior_core_cache)
-                    return [n + self.prior_scale * p.detach() for n, p in zip(net_heads, prior_heads)]
+                    return [n + prior_scale * p.detach() for n, p in zip(net_heads, self.prior_scale, prior_heads)]
         else:
             raise ValueError("Only works with a net_list model")
             
@@ -146,18 +146,18 @@ class NetWithPrior(nn.Module):
     def return_prior(self, x, k):
         if hasattr(self.net, "net_list"):
             if k is not None:
-                if self.prior_scale > 0.:
-                    return self.prior_scale * self.prior(x, k)
+                if self.prior_scale[k] > 0.:
+                    return self.prior_scale[k] * self.prior(x, k)
                 else:
                     return self.prior(x, k)
             else:
                 core_cache = self.prior._core(x)
                 net_heads = self.prior._heads(core_cache)
-                if self.prior_scale <= 0.:
+                if sum(self.prior_scale) <= 0.:
                     return net_heads
                 else:
                     prior_core_cache = self.prior._core(x)
                     prior_heads = self.prior._heads(prior_core_cache)
-                    return [self.prior_scale * p for p in prior_heads]
+                    return [prior_scale * p for prior_scale, p in zip(self.prior_scale, prior_heads)]
         else:
             raise ValueError("Only works with a net_list model")
