@@ -136,7 +136,7 @@ class NetWithPrior(nn.Module):
                 else:
                     prior_core_cache = self.prior._core(x)
                     prior_heads = self.prior._heads(prior_core_cache)
-                    return [n + prior_scale * p.detach() for n, p in zip(net_heads, self.prior_scale, prior_heads)]
+                    return [n + prior_scale * p.detach() for n,  prior_scale, p in zip(net_heads, self.prior_scale, prior_heads)]
         else:
             raise ValueError("Only works with a net_list model")
             
