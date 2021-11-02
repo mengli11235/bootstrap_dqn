@@ -185,19 +185,21 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     # min history to learn is 200,000 frames in dqn - 50000 steps
     losses = [0.0 for _ in range(info['N_ENSEMBLE'])]
     opt.zero_grad()
+    if 'discriminator' in info['IMPROVEMENT']:
+        opt_discriminator.zero_grad()
+        logits = torch.softmax(discriminator(states, 0), dim=-1)
+        policy_net.set_scale(1-logits.detach())
+        discriminator_loss = ce_loss(logits, active_heads)
+    
     q_policy_vals = policy_net(states, None)
     next_q_target_vals = target_net(next_states, None)
     next_q_policy_vals = policy_net(next_states, None)
+    # policy_net.set_scale(info['PRIOR_SCALE'])
     cnt_losses = []
     if 'entropy' in info['IMPROVEMENT']:
         prior_q_policy_vals = policy_net.return_prior(states, None)
         prior_next_q_target_vals = target_net.return_prior(next_states, None)
         prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
-    if 'discriminator' in info['IMPROVEMENT']:
-        opt_discriminator.zero_grad()
-        logits = torch.softmax(discriminator(states, 0), dim=-1)
-        #masks = 1-logits.detach()
-        discriminator_loss = ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
