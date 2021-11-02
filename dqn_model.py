@@ -140,6 +140,9 @@ class NetWithPrior(nn.Module):
         else:
             raise ValueError("Only works with a net_list model")
             
+    def set_scale(self,  scale):
+        self.prior_scale  = scale
+        
     def return_prior(self, x, k):
         if hasattr(self.net, "net_list"):
             if k is not None:
