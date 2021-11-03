@@ -185,21 +185,19 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     # min history to learn is 200,000 frames in dqn - 50000 steps
     losses = [0.0 for _ in range(info['N_ENSEMBLE'])]
     opt.zero_grad()
-    if 'discriminator' in info['IMPROVEMENT']:
-        opt_discriminator.zero_grad()
-        logits = torch.softmax(discriminator(states, 0), dim=-1)
-        policy_net.set_scale((1-logits.detach()).mean(dim=0))
-        discriminator_loss = ce_loss(logits, active_heads)
-    
     q_policy_vals = policy_net(states, None)
     next_q_target_vals = target_net(next_states, None)
     next_q_policy_vals = policy_net(next_states, None)
-    # policy_net.set_scale(info['PRIOR_SCALE'])
     cnt_losses = []
     if 'entropy' in info['IMPROVEMENT']:
         prior_q_policy_vals = policy_net.return_prior(states, None)
         prior_next_q_target_vals = target_net.return_prior(next_states, None)
         prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
+    if 'discriminator' in info['IMPROVEMENT']:
+        opt_discriminator.zero_grad()
+        logits = torch.softmax(discriminator(states, 0), dim=-1)
+        #masks = 1-logits.detach()
+        discriminator_loss = ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
@@ -404,7 +402,7 @@ if __name__ == '__main__':
         "DUELING":True, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
-        "PRIOR_SCALE":[10]*9, # what to scale prior by
+        "PRIOR_SCALE":10, # what to scale prior by
         "N_ENSEMBLE":9, # number of bootstrap heads to use. when 1, this is a normal dqn
         "LEARN_EVERY_STEPS":4, # updates every 4 steps in osband
         "BERNOULLI_PROBABILITY": 0.9, # Probability of experience to go to each head - if 1, every experience goes to every head
@@ -442,7 +440,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['discriminator', ],
+        "IMPROVEMENT": ['discriminator', 'entropy'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
