@@ -196,7 +196,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     if 'discriminator' in info['IMPROVEMENT']:
         opt_discriminator.zero_grad()
         logits = torch.softmax(discriminator(states, 0), dim=-1)
-        masks = 1-logits.detach()
+        #masks = 1-logits.detach()
         discriminator_loss = ce_loss(logits, active_heads)
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
