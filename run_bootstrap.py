@@ -136,11 +136,11 @@ class ActionGetter:
         Returns:
             An integer between 0 and n_actions
         """
-        #state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
+        state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
         # if 'discriminator' in info['IMPROVEMENT']:
         #     logits = discriminator(state, 0)
         #     #logits = torch.softmax(discriminator(states, 0), dim=-1)
-        #     action_head = torch.argmax(logits, dim=-1).item()
+        #     #action_head = torch.argmax(logits, dim=-1).item()
 
         if evaluation:
             eps = self.eps_evaluation
@@ -157,7 +157,7 @@ class ActionGetter:
         if self.random_state.rand() < eps: #or action_head == active_head:
             return eps, self.random_state.randint(0, self.n_actions)
         else:
-            state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
+            #state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
             vals = policy_net(state, active_head)
             if active_head is not None:
                 action = torch.argmax(vals, dim=1).item()
@@ -165,13 +165,13 @@ class ActionGetter:
             else:
                 # vote
                 acts = [torch.argmax(vals[h],dim=1).item() for h in range(info['N_ENSEMBLE'])]
-                # if 'discriminator' in info['IMPROVEMENT']:
-                #     #logits = discriminator(state, 0)
-                #     action_head = torch.argmax(logits, dim=-1).item()
-                #     action = acts[action_head]
-                # else:
-                data = Counter(acts)
-                action = data.most_common(1)[0][0]
+                if 'discriminator' in info['IMPROVEMENT']:
+                    logits = discriminator(state, 0)
+                    action_head = torch.argmax(logits, dim=-1).item()
+                    action = acts[action_head]
+                else:
+                    data = Counter(acts)
+                    action = data.most_common(1)[0][0]
                 return eps, action
 
 def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads, masks):
@@ -440,7 +440,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": [],
+        "IMPROVEMENT": ['discriminator'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
