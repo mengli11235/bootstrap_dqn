@@ -528,10 +528,10 @@ if __name__ == '__main__':
                                       network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                       num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
     if info['PRIOR']:
-        prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
+        prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE']*2,
                                 n_actions=env.num_actions,
                                 network_output_size=info['NETWORK_INPUT_SIZE'][0],
-                                num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
+                                num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
         # prior_target_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
         #                         n_actions=env.num_actions,
         #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
@@ -555,7 +555,7 @@ if __name__ == '__main__':
     #                    centered=info["RMS_CENTERED"],
     #                    alpha=info["RMS_DECAY"])
     opt = optim.Adam(policy_net.parameters(), lr=info['ADAM_LEARNING_RATE'])
-    opt_discriminator = optim.Adam(discriminator.parameters(), lr=info['ADAM_LEARNING_RATE'])
+    # opt_discriminator = optim.Adam(discriminator.parameters(), lr=info['ADAM_LEARNING_RATE'])
 
     kl_loss = nn.KLDivLoss()
     ce_loss = nn.CrossEntropyLoss()

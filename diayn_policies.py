@@ -3,7 +3,7 @@ import torch
 from torch import nn as nn
 import abc
 from torch.distributions import Distribution, Normal
-from dqn_model import EnsembleNet, NetWithPrior
+from dqn_model import CoreNet, HeadNet, DuelingHeadNet
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
@@ -13,23 +13,63 @@ def weight_init(module):
         nn.init.xavier_uniform_(module.weight)
         module.bias.data.zero_()
 
-def eval_np(module, *args, **kwargs):
-    """
-    Eval this module with a numpy interface
-    Same as a call to __call__ except all Variable input/outputs are
-    replaced with numpy equivalents.
-    Assumes the output is either a single object or a tuple of objects.
-    """
-    torch_args = tuple(torch_ify(x) for x in args)
-    torch_kwargs = {k: torch_ify(v) for k, v in kwargs.items()}
-    outputs = module(*torch_args, **torch_kwargs)
-    if isinstance(outputs, tuple):
-        return tuple(np_ify(x) for x in outputs)
-    else:
-        return np_ify(outputs)
-
 def identity(x):
     return x
+
+
+
+def concat_obs_z(obs, z, num_skills):
+    """Concatenates the observation to a one-hot encoding of Z."""
+    assert np.isscalar(z)
+    z_one_hot = np.zeros(num_skills)
+    z_one_hot[z] = 1
+    return np.hstack([obs, z_one_hot])
+
+def split_aug_obs(aug_obs, num_skills):
+    """Splits an augmented observation into the observation and Z."""
+    (obs, z_one_hot) = (aug_obs[:-num_skills], aug_obs[-num_skills:])
+    z = np.where(z_one_hot == 1)[0][0]
+    return (obs, z)
+    
+class QNet(nn.Module):
+    def __init__(self, n_actions, network_output_size, num_channels, dueling=False):
+        super(QNet, self).__init__()
+        self.core_net = CoreNet(network_output_size=network_output_size, num_channels=num_channels)
+        self.dueling = dueling
+        if self.dueling:
+            print("using dueling dqn")
+            self.head = DuelingHeadNet(n_actions=n_actions)
+            self.head2 = DuelingHeadNet(n_actions=n_actions)
+
+        else:
+            self.head = HeadNet(n_actions=n_actions)
+            self.head2 = HeadNet(n_actions=n_actions)
+
+    def _core(self, x):
+        return self.core_net(x)
+
+    def forward(self, x):
+        x = self.core_net(x)
+        return self.head(x), self.head2(x)
+
+class VNet(nn.Module):
+    def __init__(self, n_actions, network_output_size, num_channels, dueling=False):
+        super(QNet, self).__init__()
+        self.core_net = CoreNet(network_output_size=network_output_size, num_channels=num_channels)
+        self.dueling = dueling
+        if self.dueling:
+            print("using dueling dqn")
+            self.head = DuelingHeadNet(n_actions=n_actions)
+
+        else:
+            self.head = HeadNet(n_actions=n_actions)
+
+    def _core(self, x):
+        return self.core_net(x)
+
+    def forward(self, x):
+        x = self.core_net(x)
+        return self.head(x)
 
 class TanhNormal(Distribution):
     """
@@ -90,8 +130,8 @@ class TanhNormal(Distribution):
             self.normal_mean +
             self.normal_std *
             Normal(
-                ptu.zeros(self.normal_mean.size()),
-                ptu.ones(self.normal_std.size())
+                torch.zeros(self.normal_mean.size()),
+                torch.ones(self.normal_std.size())
             ).sample()
         )
         z.requires_grad_()
@@ -101,64 +141,64 @@ class TanhNormal(Distribution):
         else:
             return torch.tanh(z)
 
-class Mlp(nn.Module):
-    def __init__(
-            self,
-            hidden_sizes,
-            output_size,
-            input_size,
-            init_w=3e-3,
-            hidden_activation=F.relu,
-            output_activation=identity,
-            hidden_init=ptu.fanin_init,
-            b_init_value=0.1,
-            layer_norm=False,
-            layer_norm_kwargs=None,
-    ):
-        super().__init__()
+# class Mlp(nn.Module):
+#     def __init__(
+#             self,
+#             hidden_sizes,
+#             output_size,
+#             input_size,
+#             init_w=3e-3,
+#             hidden_activation=F.relu,
+#             output_activation=identity,
+#             hidden_init=ptu.fanin_init,
+#             b_init_value=0.1,
+#             layer_norm=False,
+#             layer_norm_kwargs=None,
+#     ):
+#         super().__init__()
 
-        if layer_norm_kwargs is None:
-            layer_norm_kwargs = dict()
+#         if layer_norm_kwargs is None:
+#             layer_norm_kwargs = dict()
 
-        self.input_size = input_size
-        self.output_size = output_size
-        self.hidden_activation = hidden_activation
-        self.output_activation = output_activation
-        self.layer_norm = layer_norm
-        self.fcs = []
-        self.layer_norms = []
-        in_size = input_size
+#         self.input_size = input_size
+#         self.output_size = output_size
+#         self.hidden_activation = hidden_activation
+#         self.output_activation = output_activation
+#         self.layer_norm = layer_norm
+#         self.fcs = []
+#         self.layer_norms = []
+#         in_size = input_size
 
-        for i, next_size in enumerate(hidden_sizes):
-            fc = nn.Linear(in_size, next_size)
-            in_size = next_size
-            hidden_init(fc.weight)
-            fc.bias.data.fill_(b_init_value)
-            self.__setattr__("fc{}".format(i), fc)
-            self.fcs.append(fc)
+#         for i, next_size in enumerate(hidden_sizes):
+#             fc = nn.Linear(in_size, next_size)
+#             in_size = next_size
+#             hidden_init(fc.weight)
+#             fc.bias.data.fill_(b_init_value)
+#             self.__setattr__("fc{}".format(i), fc)
+#             self.fcs.append(fc)
 
-            if self.layer_norm:
-                ln = LayerNorm(next_size)
-                self.__setattr__("layer_norm{}".format(i), ln)
-                self.layer_norms.append(ln)
+#             if self.layer_norm:
+#                 ln = LayerNorm(next_size)
+#                 self.__setattr__("layer_norm{}".format(i), ln)
+#                 self.layer_norms.append(ln)
 
-        self.last_fc = nn.Linear(in_size, output_size)
-        self.last_fc.weight.data.uniform_(-init_w, init_w)
-        self.last_fc.bias.data.uniform_(-init_w, init_w)
+#         self.last_fc = nn.Linear(in_size, output_size)
+#         self.last_fc.weight.data.uniform_(-init_w, init_w)
+#         self.last_fc.bias.data.uniform_(-init_w, init_w)
 
-    def forward(self, input, return_preactivations=False):
-        h = input
-        for i, fc in enumerate(self.fcs):
-            h = fc(h)
-            if self.layer_norm and i < len(self.fcs) - 1:
-                h = self.layer_norms[i](h)
-            h = self.hidden_activation(h)
-        preactivation = self.last_fc(h)
-        output = self.output_activation(preactivation)
-        if return_preactivations:
-            return output, preactivation
-        else:
-            return output
+#     def forward(self, input, return_preactivations=False):
+#         h = input
+#         for i, fc in enumerate(self.fcs):
+#             h = fc(h)
+#             if self.layer_norm and i < len(self.fcs) - 1:
+#                 h = self.layer_norms[i](h)
+#             h = self.hidden_activation(h)
+#         preactivation = self.last_fc(h)
+#         output = self.output_activation(preactivation)
+#         if return_preactivations:
+#             return output, preactivation
+#         else:
+#             return output
 
 class Policy(object, metaclass=abc.ABCMeta):
     """
@@ -199,17 +239,24 @@ class TanhGaussianPolicy(ExplorationPolicy):
             self,
             obs_dim,
             action_dim,
+            n_ensemble,
+            history_size,
             if_dueling,
+            device,
             std=None,
+            policy_net = None,
             init_w=1e-3,
             **kwargs
     ):
-        self.policy_net = EnsembleNet(n_ensemble=num_skills,
-                                      n_actions=action_dim,
-                                      network_output_size=obs_dim,
-                                      num_channels=history_size, dueling=if_dueling).to(device)
+        self.policy_net = QNet(n_actions=action_dim,
+                                network_output_size=obs_dim,
+                                num_channels=history_size, dueling=if_dueling).to(device)
+        if policy_net:
+            self.policy_net.load_state_dict(policy_net.state_dict())
+
         self.log_std = None
         self.std = std
+        self.n_ensemble = n_ensemble
         if std is None:
             pass
             # last_hidden_size = obs_dim
@@ -223,11 +270,12 @@ class TanhGaussianPolicy(ExplorationPolicy):
             assert LOG_SIG_MIN <= self.log_std <= LOG_SIG_MAX
 
     def get_action(self, obs_np, skill=None, deterministic=False):
-        actions = self.get_actions(obs_np[None], skill, deterministic=deterministic)
-        return actions[0, :], {}
+        obs_np = concat_obs_z(obs_np, skill, self.n_ensemble)
+        actions = self.get_actions(obs_np, skill, deterministic=deterministic)
+        return actions[0]
 
     def get_actions(self, obs_np, skill, deterministic=False):
-        return eval_np(self, obs_np, skill, deterministic=deterministic)[0]
+        return self.forward(obs_np, skill, deterministic=deterministic)
     
     def get_network(self):
         return self.policy_net
@@ -238,7 +286,7 @@ class TanhGaussianPolicy(ExplorationPolicy):
             skill=None,
             reparameterize=True,
             deterministic=False,
-            return_log_prob=False,
+            return_log_prob=True,
     ):
         """
         :param obs: Observation
@@ -252,10 +300,11 @@ class TanhGaussianPolicy(ExplorationPolicy):
         # for i, fc in enumerate(self.fcs):
         #     h = self.hidden_activation(fc(h))
         # mean = self.last_fc(h)
-        mean = self.policy_net(obs, skill)
+        obs = concat_obs_z(obs, skill, self.n_ensemble)
+
+        mean, log_std = self.policy_net(obs)
 
         if self.std is None:
-            log_std = self.last_fc_log_std(h)
             log_std = torch.clamp(log_std, LOG_SIG_MIN, LOG_SIG_MAX)
             std = torch.exp(log_std)
         else:
@@ -267,7 +316,7 @@ class TanhGaussianPolicy(ExplorationPolicy):
         mean_action_log_prob = None
         pre_tanh_value = None
         if deterministic:
-            action = torch.tanh(mean)
+            a = np.argmax(mean)
         else:
             tanh_normal = TanhNormal(mean, std)
             if return_log_prob:
@@ -289,11 +338,27 @@ class TanhGaussianPolicy(ExplorationPolicy):
                     action = tanh_normal.rsample()
                 else:
                     action = tanh_normal.sample()
+            action = torch.distributions.Categorical(logits=action)
+            a = action.sample()
 
         return (
-            action, mean, log_std, log_prob, entropy, std,
+            a, mean, log_std, log_prob, entropy, std,
             mean_action_log_prob, pre_tanh_value,
         )
+
+    # def sample(self, state):
+    #     mean, log_std = self.forward(state)
+    #     std = log_std.exp()
+    #     normal = Normal(mean, std)
+    #     x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+    #     y_t = torch.tanh(x_t)
+    #     action = y_t * self.action_scale + self.action_bias
+    #     log_prob = normal.log_prob(x_t)
+    #     # Enforcing Action Bound
+    #     log_prob -= torch.log(self.action_scale * (1 - y_t.pow(2)) + epsilon)
+    #     log_prob = log_prob.sum(1, keepdim=True)
+    #     mean = torch.tanh(mean) * self.action_scale + self.action_bias
+    #     return action, log_prob, mean
 
 
 class MakeDeterministic(Policy):
@@ -306,44 +371,44 @@ class MakeDeterministic(Policy):
                                                  deterministic=True)
 
 
-class CategoricalMLPPolicy(Policy):
-    """Policy network based on a multi-layer perceptron (MLP), with a 
-    `Categorical` distribution output. This policy network can be used on tasks 
-    with discrete action spaces (eg. `TabularMDPEnv`). The code is adapted from 
-    https://github.com/cbfinn/maml_rl/blob/9c8e2ebd741cb0c7b8bf2d040c4caeeb8e06cc95/sandbox/rocky/tf/policies/maml_minimal_categorical_mlp_policy.py
-    """
-    def __init__(self, input_size, output_size,
-                 hidden_sizes=(), nonlinearity=F.relu):
-        super(CategoricalMLPPolicy, self).__init__(
-            input_size=input_size, output_size=output_size)
-        self.hidden_sizes = hidden_sizes
-        self.nonlinearity = nonlinearity
-        self.num_layers = len(hidden_sizes) + 1
+# class CategoricalMLPPolicy(Policy):
+#     """Policy network based on a multi-layer perceptron (MLP), with a 
+#     `Categorical` distribution output. This policy network can be used on tasks 
+#     with discrete action spaces (eg. `TabularMDPEnv`). The code is adapted from 
+#     https://github.com/cbfinn/maml_rl/blob/9c8e2ebd741cb0c7b8bf2d040c4caeeb8e06cc95/sandbox/rocky/tf/policies/maml_minimal_categorical_mlp_policy.py
+#     """
+#     def __init__(self, input_size, output_size,
+#                  hidden_sizes=(), nonlinearity=F.relu):
+#         super(CategoricalMLPPolicy, self).__init__(
+#             input_size=input_size, output_size=output_size)
+#         self.hidden_sizes = hidden_sizes
+#         self.nonlinearity = nonlinearity
+#         self.num_layers = len(hidden_sizes) + 1
 
-        layer_sizes = (input_size,) + hidden_sizes + (output_size,)
-        for i in range(1, self.num_layers + 1):
-            self.add_module('layer{0}'.format(i),
-                nn.Linear(layer_sizes[i - 1], layer_sizes[i]))
-        self.apply(weight_init)
+#         layer_sizes = (input_size,) + hidden_sizes + (output_size,)
+#         for i in range(1, self.num_layers + 1):
+#             self.add_module('layer{0}'.format(i),
+#                 nn.Linear(layer_sizes[i - 1], layer_sizes[i]))
+#         self.apply(weight_init)
 
-    def torch_ify(self, np_array_or_other):
-        if isinstance(np_array_or_other, np.ndarray):
-            return ptu.from_numpy(np_array_or_other)
-        else:
-            return np_array_or_other
+#     def torch_ify(self, np_array_or_other):
+#         if isinstance(np_array_or_other, np.ndarray):
+#             return ptu.from_numpy(np_array_or_other)
+#         else:
+#             return np_array_or_other
 
-    def forward(self, input, params=None):
-        if params is None:
-            params = OrderedDict(self.named_parameters())
-        input = self.torch_ify(input)
-        output = input
-        for i in range(1, self.num_layers):
-            output = F.linear(output,
-                weight=params['layer{0}.weight'.format(i)],
-                bias=params['layer{0}.bias'.format(i)])
-            output = self.nonlinearity(output)
-        logits = F.linear(output,
-            weight=params['layer{0}.weight'.format(self.num_layers)],
-            bias=params['layer{0}.bias'.format(self.num_layers)])
+#     def forward(self, input, params=None):
+#         if params is None:
+#             params = OrderedDict(self.named_parameters())
+#         input = self.torch_ify(input)
+#         output = input
+#         for i in range(1, self.num_layers):
+#             output = F.linear(output,
+#                 weight=params['layer{0}.weight'.format(i)],
+#                 bias=params['layer{0}.bias'.format(i)])
+#             output = self.nonlinearity(output)
+#         logits = F.linear(output,
+#             weight=params['layer{0}.weight'.format(self.num_layers)],
+#             bias=params['layer{0}.bias'.format(self.num_layers)])
 
-        return OneHotCategorical(logits=logits)
+#         return OneHotCategorical(logits=logits)

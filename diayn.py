@@ -3,7 +3,8 @@ import torch
 import torch.optim as optim
 from torch import nn as nn
 import torch.nn.functional as F
-
+import datetime
+import time
 from dqn_model import EnsembleNet, NetWithPrior
 from dqn_utils import seed_everything, write_info_file, generate_gif, save_checkpoint
 from env import Environment
@@ -22,41 +23,14 @@ def soft_update_from_to(source, target, tau):
             target_param.data * (1.0 - tau) + param.data * tau
         )
 
-def handle_checkpoint(last_save, cnt):
-    if (cnt-last_save) >= info['CHECKPOINT_EVERY_STEPS']:
-        st = time.time()
-        print("beginning checkpoint", st)
-        last_save = cnt
-        state = {'info':info,
-                 'optimizer':opt.state_dict(),
-                 'cnt':cnt,
-                 'policy_net_state_dict':policy_net.state_dict(),
-                 'target_net_state_dict':target_net.state_dict(),
-                 'perf':perf,
-                }
-        filename = os.path.abspath(model_base_filepath + "_%010dq.pkl"%cnt)
-        if torch.cuda.is_available():
-            filename = os.path.abspath("/scratch/users/limeng/buffer" + "_%010dq.pkl"%cnt)
-        save_checkpoint(state, filename)
-        # npz will be added
-        buff_filename = os.path.abspath(model_base_filepath + "_%010dq_train_buffer"%cnt)
-        if torch.cuda.is_available():
-                    buff_filename = os.path.abspath("/scratch/users/limeng/buffer" + "_%010dq_train_buffer"%cnt)
-        #replay_memory.save_buffer(buff_filename)
-        print("finished checkpoint", time.time()-st)
-        return last_save
-    else: return last_save
-
-
 class DIAYN():
     def __init__(
             self,
-            env,
             discount=0.99,
             reward_scale=1.0,
 
             policy_lr=3E-4, #1e-3,
-            qf_lr=3E-4 #1e-3,
+            qf_lr=3E-4, #1e-3,
             value_lr=1e-3,
             discriminator_lr=1e-3,
             optimizer_class=optim.Adam,
@@ -64,7 +38,7 @@ class DIAYN():
             lr=3E-3,
             scale_entropy=1,
             tau=0.01,
-            num_skills=info['N_ENSEMBLE'],
+            num_skills=9,
             save_full_state=False,
             find_best_skill_interval=10,
             best_skill_n_rollouts=10,
@@ -82,9 +56,12 @@ class DIAYN():
             policy_std_reg_weight=1e-3,
             policy_pre_activation_weight=0.,
             policy_update_period=1,
-            n_train_steps_total = 0
+            n_train_steps_total = 0,
     ):
-        self.env = env
+        self.env = Environment(rom_file=info['GAME'], frame_skip=info['FRAME_SKIP'],
+                      num_frames=info['HISTORY_SIZE'], no_op_start=info['MAX_NO_OP_FRAMES'], rand_seed=info['SEED'],
+                      dead_as_end=info['DEAD_AS_END'], max_episode_steps=info['MAX_EPISODE_STEPS'])
+
         self.replay_memory = ReplayMemory(size=info['BUFFER_SIZE'],
                                  frame_height=info['NETWORK_INPUT_SIZE'][0],
                                  frame_width=info['NETWORK_INPUT_SIZE'][1],
@@ -95,15 +72,13 @@ class DIAYN():
 
         self.policy = TanhGaussianPolicy(
                                 obs_dim=info['NETWORK_INPUT_SIZE'],
-                                action_dim=env.num_actions,
+                                action_dim=self.env.num_actions,
+                                n_ensemble = info['N_ENSEMBLE'],
+                                history_size = info['HISTORY_SIZE'],
+                                device = info['DEVICE'],
                                 if_dueling = info['DUELING'],)
 
-        self.qf1 = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
-                                n_actions=env.num_actions,
-                                network_output_size=info['NETWORK_INPUT_SIZE'][0],
-                                num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
-        self.qf2 = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
-                                n_actions=env.num_actions,
+        self.qf = QNet(n_actions=self.env.num_actions,
                                 network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                 num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
         # self.target_qf1 = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
@@ -114,12 +89,10 @@ class DIAYN():
         #                         n_actions=env.num_actions,
         #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
         #                         num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
-        self.discriminator = = EnsembleNet(n_ensemble=1,
-                                n_actions=info['N_ENSEMBLE'],
+        self.discriminator = VNet(n_actions=info['N_ENSEMBLE'],
                                 network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                 num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
-        self.value_network = EnsembleNet(n_ensemble=1,
-                                n_actions=1,
+        self.value_network = VNet(n_actions=1,
                                 network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                 num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
 
@@ -128,8 +101,7 @@ class DIAYN():
         #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
         #                         num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
 
-        self.target_vf = EnsembleNet(n_ensemble=1,
-                                n_actions=1,
+        self.target_vf = VNet(n_actions=1,
                                 network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                 num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
 
@@ -163,7 +135,7 @@ class DIAYN():
             if target_entropy:
                 self.target_entropy = target_entropy
             else:
-                self.target_entropy = -np.prod(self.env.action_space.shape).item()  # heuristic value from Tuomas
+                self.target_entropy = -np.prod(self.env.num_actions).item()  # heuristic value from Tuomas
             self.log_alpha = torch.zeros(1, requires_grad=True)
             self.alpha_optimizer = optimizer_class(
                 [self.log_alpha],
@@ -174,7 +146,7 @@ class DIAYN():
         self.vf_criterion = nn.MSELoss()
 
         self.policy_optimizer = optimizer_class(
-            self.policy.parameters(),
+            self.policy.get_network().parameters(),
             lr=policy_lr,
         )
         self.qf1_optimizer = optimizer_class(
@@ -199,14 +171,41 @@ class DIAYN():
         self.discount = discount
         self.reward_scale = reward_scale
 
-        self.action_dim = self.env.action_space
+        self.action_dim = self.env.num_actions
         self.obs_dim = info['NETWORK_INPUT_SIZE']
         self._n_train_steps_total = n_train_steps_total
 
+    def handle_checkpoint(self, last_save, cnt):
+        if (cnt-last_save) >= info['CHECKPOINT_EVERY_STEPS']:
+            st = time.time()
+            print("beginning checkpoint", st)
+            last_save = cnt
+            state = {'info':info,
+                    'cnt':cnt,
+                    'policy_net_state_dict': self.policy.get_network().state_dict(),
+                    'qf1_net_state_dict':self.qf1.state_dict(),
+                    'qf2_net_state_dict':self.qf2.state_dict(),
+                    'value_state_dict':self.value_network.state_dict(),
+                    'discriminator_state_dict': self.discriminator.state_dict(),
+                    }
+
+            filename = os.path.join(info['model_path'] + "_%010dq.pkl"%cnt)
+            save_checkpoint(state, filename)
+            # npz will be added
+            buff_filename = os.path.abspath(model_base_filepath + "_%010dq_train_buffer"%cnt)
+            if torch.cuda.is_available():
+                        buff_filename = os.path.abspath("/scratch/users/limeng/buffer" + "_%010dq_train_buffer"%cnt)
+            #replay_memory.save_buffer(buff_filename)
+            print("finished checkpoint", time.time()-st)
+            return last_save
+        else: return last_save
+
     def sample_empowerment_latents(self, observation):
         """Samples z from p(z), using probabilities in self.p_z."""
-        self.random_state.shuffle(self.heads)
-        active_head = self.heads[0]
+        active_head = []
+        for _ in range(len(observation)):
+            self.random_state.shuffle(self.heads)
+            active_head.append(self.heads[0])
         return active_head #self.higher_policy(observation).sample()
 
     # def split_obs(self, obs):
@@ -222,9 +221,8 @@ class DIAYN():
         """
 
         # Get the q value for the observation(obs, z_one_hot) and action.
-
-        q_value_1 = self.qf1(observation, active_head)[action]
-        q_value_2 = self.qf2(observation, active_head)[action]
+        print(active_head)
+        q_value_1, q_value_2 = self.qf(concat_obs_z(observation, active_head, action))
 
         if self.include_actions:
             logits = self.discriminator(observation, action)
@@ -233,17 +231,17 @@ class DIAYN():
 
         # The empowerment reward is defined as the cross entropy loss between the
         # true skill and the selected skill.
-        empowerment_reward = -1 * torch.nn.CrossEntropyLoss()(z_one_hot, logits)
+        empowerment_reward = -1 * torch.nn.CrossEntropyLoss()(active_head, logits)
 
-        p_z = torch.sum(p_z_given*z_one_hot, axis=1)
+        p_z = torch.sum(p_z_given*active_head, axis=1)
         log_p_z = torch.log(p_z+EPS)
 
         if self.add_p_z:
             empowerment_reward -= log_p_z
 
         # Now we will calculate the value function and critic Q function update.
-        vf_target_next_obs = self.target_vf(next_observation)
-        v_pred = self.value_network(observation)
+        vf_target_next_obs = self.target_vf(next_observation, 0)
+        v_pred = self.value_network(observation, 0)
 
         # Calculate the targets for the Q function (Calculate Q Function Loss)
         q_target = self.reward_scale*empowerment_reward + (1 - done) * self.discount * vf_target_next_obs
@@ -301,9 +299,6 @@ class DIAYN():
         else:
             alpha = 1
             alpha_loss = 0
-
-        policy_distribution = self.policy.get_distibution(observation)
-        log_pi = policy_distribution.log_pi
 
         v_target = q_new_actions - alpha * log_pi
         vf_loss = self.vf_criterion(v_pred, v_target.detach())
@@ -389,7 +384,7 @@ class DIAYN():
 
         return vf_loss, alpha_loss, alpha, qf1_loss, qf2_loss, empowerment_reward, policy_loss
 
-    def update_discriminator(self, observation, action):
+    def update_discriminator(self, observation, active_head, action):
         """
 
         Creates the minimization operation for the discriminator.
@@ -401,7 +396,7 @@ class DIAYN():
         else:
             logits = self.discriminator(observation)
 
-        discriminator_loss = torch.nn.CrossEntropyLoss()(logits, z_one_hot)
+        discriminator_loss = torch.nn.CrossEntropyLoss()(logits, active_head)
 
         """
         Update the discriminator
@@ -418,43 +413,47 @@ class DIAYN():
         Args:
             step_number: int number of the current step
             state: A (4, 84, 84) sequence of frames of an atari game in grayscale
-            active_head: number of head to use, if None, will run all heads and vote
+            active_head: number of head to use
             evaluation: A boolean saying whether the agent is being evaluated
         Returns:
             An integer between 0 and n_actions
         """
 
         state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
-        if not evaluation:
-            self.higher_level_policy.eval()
-            logits = self.higher_level_policy(states, 0)
-            active_heads = OneHotCategorical(logits=logits)
-            active_head = active_heads.sample()
-        a, vals = self.policy.get_action(state, active_head)
+        #if not evaluation:
+            # self.higher_level_policy.eval()
+            # logits = self.higher_level_policy(states, 0)
+            # active_heads = OneHotCategorical(logits=logits)
+            # active_head = active_heads.sample()
+        active_head = self.sample_empowerment_latents(state)[0]
+        a = self.policy.get_action(state, active_head)
         return active_head, a
 
     def batch_upadte(self, rewards, terminals, obs, actions, next_obs, active_head):
-        p_z = self.sample_empowerment_latents(obs)
-
         """
 
         Update the networks
 
         """
-
-        rews = np.mean(ptu.get_numpy(rewards))
+        obs = torch.Tensor(obs.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
+        next_obs = torch.Tensor(next_obs.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
+        rewards = torch.Tensor(rewards).to(info['DEVICE'])
+        actions = torch.LongTensor(actions).to(info['DEVICE'])
+        terminals = torch.Tensor(terminals.astype(np.int)).to(info['DEVICE'])
+        active_head = torch.LongTensor(active_head).to(info['DEVICE'])
+        p_z = self.sample_empowerment_latents(obs)
 
         vf_loss, alpha_loss, alpha, qf1_loss, qf2_loss, emp_reward, pol_loss = self.update_state_value(
             observation=obs,
             action=actions,
             done=terminals,
             next_observation=next_obs,
-            active_head= active_head
-            p_z_given=p_z
+            active_head= active_head,
+            p_z_given=p_z,
         )
 
         # Update the discriminator
-        discriminator_loss = self.update_discriminator(observation=obs,
+        discriminator_loss = self.update_discriminator(observation=obs, active_head= active_head,
                                                        action=actions)
 
         i = self._n_train_steps_total
@@ -465,7 +464,7 @@ class DIAYN():
 
     def train(self, step_number=0, last_save=0):
         """Contains the training and evaluation loops"""
-        epoch_num = len(perf['steps'])
+        epoch_num = 0
         while step_number < info['MAX_STEPS']:
             ########################
             ####### Training #######
@@ -474,7 +473,7 @@ class DIAYN():
             while epoch_frame < info['EVAL_FREQUENCY']:
                 terminal = False
                 life_lost = True
-                state = env.reset()
+                state = self.env.reset()
                 start_steps = step_number
                 st = time.time()
                 episode_reward_sum = 0
@@ -484,7 +483,7 @@ class DIAYN():
                     active_head, action = self.pt_get_action(step_number, state=state, active_head=None)
                     if life_lost:
                         action = 1
-                    next_state, reward, life_lost, terminal = env.step(action)
+                    next_state, reward, life_lost, terminal = self.env.step(action)
                     # Store transition in the replay memory
                     self.replay_memory.add_experience(action=action,
                                                     frame=next_state[-1],
@@ -499,7 +498,7 @@ class DIAYN():
 
                     if step_number % info['LEARN_EVERY_STEPS'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
                         _states, _actions, _rewards, _next_states, _terminal_flags, _active_heads, _masks = self.replay_memory.get_minibatch(info['BATCH_SIZE'])
-                        ptloss = self.batch_upadte(_rewards, _terminal_flags, _states, _actions, _next_states)
+                        ptloss = self.batch_upadte(_rewards, _terminal_flags, _states, _actions, _next_states, _active_heads)
                         ptloss_list.append(ptloss)
                     # if step_number % info['TARGET_UPDATE'] == 0 and step_number >  info['MIN_HISTORY_TO_LEARN']:
                     #     print("++++++++++++++++++++++++++++++++++++++++++++++++")
@@ -507,7 +506,7 @@ class DIAYN():
                     #     target_net.load_state_dict(policy_net.state_dict())
                     #     #prior_target_net.load_state_dict(prior_net.state_dict())
 
-                last_save = handle_checkpoint(last_save, step_number)
+                last_save = self.handle_checkpoint(last_save, step_number)
             avg_eval_reward = evaluate(step_number)
 
     def evaluate(self, step_number):
@@ -547,21 +546,10 @@ class DIAYN():
 
         print("Evaluation score:\n", np.mean(eval_rewards))
         generate_gif(model_base_filedir, step_number, frames_for_gif, eval_rewards[0], name='test', results=results_for_eval)
-            efile = os.path.join(model_base_filedir, 'eval_rewards.txt')
+        efile = os.path.join(model_base_filedir, 'eval_rewards.txt')
         with open(efile, 'a') as eval_reward_file:
             print(step_number, np.mean(eval_rewards), file=eval_reward_file)
         return np.mean(eval_rewards)
-
-    @property
-    def networks(self):
-        return [
-            self.policy,
-            self.qf1,
-            self.qf2,
-            self.target_vf,
-            self.discriminator,
-            self.value_network
-        ]
 
 if __name__ == '__main__':
     if torch.cuda.is_available():
@@ -575,7 +563,7 @@ if __name__ == '__main__':
         "DEVICE":device, #cpu vs gpu set by argument
         "model_path":'diayn_net', # start files with name
         "TARGET_UPDATE":10000, # how often to update target network
-        "MIN_HISTORY_TO_LEARN":0, # in environment frames
+        "MIN_HISTORY_TO_LEARN":50, # in environment frames
         "NORM_BY":255.,  # divide the float(of uint) by this number to normalize - max val of data is 255
         "MAX_STEPS":int(50e3), # 50e6 steps is 200e6 frames
         "MAX_EPISODE_STEPS":27000, # Orig dqn give 18k steps, Rainbow seems to give 27k steps
@@ -585,14 +573,16 @@ if __name__ == '__main__':
         "NETWORK_INPUT_SIZE":(84,84),
         "HISTORY_SIZE":4, # how many past frames to use for state input
         "BUFFER_SIZE":int(1e3), # Buffer size for experience replay
-        'EVAL_FREQUENCY': 2500,
-        'CHECKPOINT_EVERY_STEPS':50000,
-        "DUELING":True, # use dueling dqn
+        'EVAL_FREQUENCY': 1,#2500,
+        'CHECKPOINT_EVERY_STEPS':50,#000,
+        "DUELING":False, # use dueling dqn
         "N_ENSEMBLE": 9,
         "LEARN_EVERY_STEPS":4,
         "SEED":101,
+        "BATCH_SIZE":32, # Batch size to use for learning
+        "BERNOULLI_PROBABILITY": 0.9, # Probability of experience to go to each head - if 1, every experience goes to every head
 
     }
     seed_everything(info["SEED"])
-    diayn = DIAYN()
+    diayn = DIAYN(num_skills=info['N_ENSEMBLE'])
     diayn.train()
