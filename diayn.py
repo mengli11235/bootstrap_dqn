@@ -5,6 +5,8 @@ from torch import nn as nn
 import torch.nn.functional as F
 import datetime
 import time
+import os
+
 from dqn_model import EnsembleNet, NetWithPrior
 from dqn_utils import seed_everything, write_info_file, generate_gif, save_checkpoint
 from env import Environment
@@ -49,7 +51,7 @@ class DIAYN():
             soft_target_tau=5e-3, #1e-2,
             target_update_period=1,
 
-            use_automatic_entropy_tuning=True,
+            use_automatic_entropy_tuning=False,
             target_entropy=None,
             train_policy_with_reparameterization=True,
             policy_mean_reg_weight=1e-3,
@@ -74,13 +76,13 @@ class DIAYN():
                                 obs_dim=info['NETWORK_INPUT_SIZE'],
                                 action_dim=self.env.num_actions,
                                 n_ensemble = info['N_ENSEMBLE'],
-                                history_size = info['HISTORY_SIZE'],
+                                history_size = info['HISTORY_SIZE']+1,
                                 device = info['DEVICE'],
                                 if_dueling = info['DUELING'],)
 
         self.qf = QNet(n_actions=self.env.num_actions,
                                 network_output_size=info['NETWORK_INPUT_SIZE'][0],
-                                num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
+                                num_channels=info['HISTORY_SIZE']+1, dueling=info['DUELING']).to(info['DEVICE'])
         # self.target_qf1 = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
         #                         n_actions=env.num_actions,
         #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
@@ -149,12 +151,8 @@ class DIAYN():
             self.policy.get_network().parameters(),
             lr=policy_lr,
         )
-        self.qf1_optimizer = optimizer_class(
-            self.qf1.parameters(),
-            lr=qf_lr,
-        )
-        self.qf2_optimizer = optimizer_class(
-            self.qf2.parameters(),
+        self.qf_optimizer = optimizer_class(
+            self.qf.parameters(),
             lr=qf_lr,
         )
 
@@ -183,37 +181,39 @@ class DIAYN():
             state = {'info':info,
                     'cnt':cnt,
                     'policy_net_state_dict': self.policy.get_network().state_dict(),
-                    'qf1_net_state_dict':self.qf1.state_dict(),
-                    'qf2_net_state_dict':self.qf2.state_dict(),
+                    'qf_net_state_dict':self.qf.state_dict(),
                     'value_state_dict':self.value_network.state_dict(),
                     'discriminator_state_dict': self.discriminator.state_dict(),
                     }
-
-            filename = os.path.join(info['model_path'] + "_%010dq.pkl"%cnt)
+            if not os.path.exists(info['MODEL_PATH']):
+                os.makedirs(info['MODEL_PATH'])
+            filename = os.path.join(info['MODEL_PATH'], "%010dq.pkl"%cnt)
             save_checkpoint(state, filename)
-            # npz will be added
-            buff_filename = os.path.abspath(model_base_filepath + "_%010dq_train_buffer"%cnt)
-            if torch.cuda.is_available():
-                        buff_filename = os.path.abspath("/scratch/users/limeng/buffer" + "_%010dq_train_buffer"%cnt)
+
             #replay_memory.save_buffer(buff_filename)
             print("finished checkpoint", time.time()-st)
             return last_save
         else: return last_save
 
-    def sample_empowerment_latents(self, observation):
+    # def sample_empowerment_latents(self, observation):
+    #     """Samples z from p(z), using probabilities in self.p_z."""
+    #     active_head = []
+    #     for _ in range(len(observation)):
+    #         self.random_state.shuffle(self.heads)
+    #         active_head.append(self.heads[0])
+    #     return active_head #self.higher_policy(observation).sample()
+
+    def sample_empowerment_latents(self):
         """Samples z from p(z), using probabilities in self.p_z."""
-        active_head = []
-        for _ in range(len(observation)):
-            self.random_state.shuffle(self.heads)
-            active_head.append(self.heads[0])
-        return active_head #self.higher_policy(observation).sample()
+        self.random_state.shuffle(self.heads)
+        return self.heads[0]
 
     # def split_obs(self, obs):
     #     obs, z_one_hot = obs[:self.obs_dim], obs[self.obs_dim:]
     #     return obs, z_one_hot
 
     def update_critic(self, observation, action,
-                      p_z_given, next_observation, active_head, done):
+                      next_observation, active_head, done, aug_obs, aug_next_obs, active_head_one_hot):
 
         """
         Create minimization operation for the critic Q function.
@@ -221,8 +221,12 @@ class DIAYN():
         """
 
         # Get the q value for the observation(obs, z_one_hot) and action.
-        print(active_head)
-        q_value_1, q_value_2 = self.qf(concat_obs_z(observation, active_head, action))
+        q_pred_1, q_pred_2 = self.qf(aug_obs)
+
+        action_one_hot_input = torch.tensor(z_one_hots(action.numpy(), (1,self.action_dim))).to(info['DEVICE']).squeeze()
+
+        q_value_1 = torch.sum(q_pred_1*action_one_hot_input, dim=1)
+        q_value_2 = torch.sum(q_pred_2*action_one_hot_input, dim=1)
 
         if self.include_actions:
             logits = self.discriminator(observation, action)
@@ -231,28 +235,27 @@ class DIAYN():
 
         # The empowerment reward is defined as the cross entropy loss between the
         # true skill and the selected skill.
-        empowerment_reward = -1 * torch.nn.CrossEntropyLoss()(active_head, logits)
+        active_head_one_hot_input = torch.tensor(z_one_hots(active_head.numpy(), (1,info['N_ENSEMBLE']))).to(info['DEVICE']).squeeze()
+        empowerment_reward = -1 * my_ce_loss(active_head_one_hot_input, logits)
 
-        p_z = torch.sum(p_z_given*active_head, axis=1)
+        p_z = torch.sum(torch.tensor(self.p_z).to(info['DEVICE'])*active_head_one_hot_input, axis=1)
         log_p_z = torch.log(p_z+EPS)
 
         if self.add_p_z:
             empowerment_reward -= log_p_z
 
         # Now we will calculate the value function and critic Q function update.
-        vf_target_next_obs = self.target_vf(next_observation, 0)
-        v_pred = self.value_network(observation, 0)
-
+        vf_target_next_obs = self.target_vf(next_observation).squeeze()
         # Calculate the targets for the Q function (Calculate Q Function Loss)
         q_target = self.reward_scale*empowerment_reward + (1 - done) * self.discount * vf_target_next_obs
         qf1_loss = self.qf_criterion(q_value_1, q_target.detach())
         qf2_loss = self.qf_criterion(q_value_2, q_target.detach())
 
-        return qf1_loss, qf2_loss, empowerment_reward, v_pred
+        return qf1_loss+qf2_loss, empowerment_reward
 
-    def update_state_value(self, observation, action, p_z_given,
+    def update_state_value(self, observation, action,
                            next_observation, active_head,
-                           done):
+                           done, aug_obs, aug_next_obs, active_head_one_hot):
         """
         Creates minimization operations for the state value functions.
 
@@ -264,25 +267,32 @@ class DIAYN():
         :return:
         """
 
-        qf1_loss, qf2_loss, empowerment_reward, _ = self.update_critic(observation=observation,
+        qf_loss, empowerment_reward = self.update_critic(observation=observation,
                                                                        action=action,
-                                                                       p_z_given=p_z_given,
                                                                        next_observation=next_observation,
                                                                        active_head=active_head,
-                                                                       done=done)
+                                                                       done=done, aug_obs = aug_obs,
+                                                                       aug_next_obs = aug_next_obs,
+                                                                       active_head_one_hot = active_head_one_hot,)
 
         # Make sure policy accounts for squashing functions like tanh correctly!
-        policy_outputs = self.policy(observation, skill=active_head,
+        policy_outputs = self.policy.forward(aug_obs,
                                      reparameterize=self.train_policy_with_reparameterization,
                                      return_log_prob=True)
         new_actions, policy_mean, policy_log_std, log_pi = policy_outputs[:4]
+        print(policy_mean, policy_log_std, log_pi)
+
+        q_pred_1, q_pred_2 = self.qf(aug_obs)
+        q_value_1 = torch.tensor([q1[a] for q1, a in zip(q_pred_1, new_actions)]).to(info['DEVICE'])
+        q_value_2  = torch.tensor([q2[a] for q2, a in zip(q_pred_2, new_actions)]).to(info['DEVICE'])
+
 
         q_new_actions = torch.min(
-            self.qf1(observation, new_actions),
-            self.qf2(observation, new_actions),
+            q_value_1,
+            q_value_2,
         )
 
-        v_pred = self.value_network(observation)
+        v_pred = self.value_network(observation).squeeze()
 
         """
                Alpha Loss (if applicable)
@@ -302,17 +312,13 @@ class DIAYN():
 
         v_target = q_new_actions - alpha * log_pi
         vf_loss = self.vf_criterion(v_pred, v_target.detach())
-
+        #print(v_pred.size(),log_pi.size())
         """
         Update networks
         """
-        self.qf1_optimizer.zero_grad()
-        qf1_loss.backward()
-        self.qf1_optimizer.step()
-
-        self.qf2_optimizer.zero_grad()
-        qf2_loss.backward()
-        self.qf2_optimizer.step()
+        self.qf_optimizer.zero_grad()
+        qf_loss.backward()
+        self.qf_optimizer.step()
 
         self.vf_optimizer.zero_grad()
         vf_loss.backward()
@@ -381,8 +387,8 @@ class DIAYN():
         #     if self.use_automatic_entropy_tuning:
         #         self.eval_statistics['Alpha'] = alpha.item()
         #         self.eval_statistics['Alpha Loss'] = alpha_loss.item()
-
-        return vf_loss, alpha_loss, alpha, qf1_loss, qf2_loss, empowerment_reward, policy_loss
+        print(policy_loss)
+        return vf_loss, alpha_loss, alpha, qf_loss, empowerment_reward, policy_loss
 
     def update_discriminator(self, observation, active_head, action):
         """
@@ -418,16 +424,17 @@ class DIAYN():
         Returns:
             An integer between 0 and n_actions
         """
-
-        state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
+        state = state.astype(np.float)/info['NORM_BY']
+        active_head = z_one_hot(active_head, info['NETWORK_INPUT_SIZE'])
+        state = concat_obs_z(state, active_head)
+        state = torch.Tensor(state)[None,:].to(info['DEVICE'])
         #if not evaluation:
             # self.higher_level_policy.eval()
             # logits = self.higher_level_policy(states, 0)
             # active_heads = OneHotCategorical(logits=logits)
             # active_head = active_heads.sample()
-        active_head = self.sample_empowerment_latents(state)[0]
-        a = self.policy.get_action(state, active_head)
-        return active_head, a
+        a = self.policy.get_action(state)
+        return a
 
     def batch_upadte(self, rewards, terminals, obs, actions, next_obs, active_head):
         """
@@ -435,32 +442,40 @@ class DIAYN():
         Update the networks
 
         """
-        obs = torch.Tensor(obs.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
-        next_obs = torch.Tensor(next_obs.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
+        obs = obs.astype(np.float)/info['NORM_BY']
+        active_head_one_hot = z_one_hots(active_head, info['NETWORK_INPUT_SIZE'])
+        aug_obs = torch.Tensor(concat_obs_zs(obs, active_head_one_hot)).to(info['DEVICE'])
+        obs = torch.Tensor(obs).to(info['DEVICE'])
+
+        next_obs = next_obs.astype(np.float)/info['NORM_BY']
+        aug_next_obs = torch.Tensor(concat_obs_zs(next_obs, active_head_one_hot)).to(info['DEVICE'])
+        next_obs = torch.Tensor(next_obs).to(info['DEVICE'])
+
         rewards = torch.Tensor(rewards).to(info['DEVICE'])
         actions = torch.LongTensor(actions).to(info['DEVICE'])
         terminals = torch.Tensor(terminals.astype(np.int)).to(info['DEVICE'])
         active_head = torch.LongTensor(active_head).to(info['DEVICE'])
-        p_z = self.sample_empowerment_latents(obs)
+        active_head_one_hot = torch.LongTensor(active_head_one_hot).to(info['DEVICE'])
 
-        vf_loss, alpha_loss, alpha, qf1_loss, qf2_loss, emp_reward, pol_loss = self.update_state_value(
+        vf_loss, alpha_loss, alpha, qf_loss, emp_reward, pol_loss = self.update_state_value(
             observation=obs,
             action=actions,
             done=terminals,
             next_observation=next_obs,
             active_head= active_head,
-            p_z_given=p_z,
+            aug_obs = aug_obs,
+            aug_next_obs = aug_next_obs,
+            active_head_one_hot = active_head_one_hot,
         )
 
         # Update the discriminator
-        discriminator_loss = self.update_discriminator(observation=obs, active_head= active_head,
+        discriminator_loss = self.update_discriminator(observation=obs, active_head=active_head,
                                                        action=actions)
 
         i = self._n_train_steps_total
 
-
         self._n_train_steps_total += 1
-        return np.mean(pol_loss)
+        return pol_loss
 
     def train(self, step_number=0, last_save=0):
         """Contains the training and evaluation loops"""
@@ -479,8 +494,9 @@ class DIAYN():
                 episode_reward_sum = 0
                 epoch_num += 1
                 ptloss_list = []
+                active_head = self.sample_empowerment_latents()
                 while not terminal:
-                    active_head, action = self.pt_get_action(step_number, state=state, active_head=None)
+                    action = self.pt_get_action(step_number, state=state, active_head=active_head)
                     if life_lost:
                         action = 1
                     next_state, reward, life_lost, terminal = self.env.step(action)
@@ -507,7 +523,7 @@ class DIAYN():
                     #     #prior_target_net.load_state_dict(prior_net.state_dict())
 
                 last_save = self.handle_checkpoint(last_save, step_number)
-            avg_eval_reward = evaluate(step_number)
+            avg_eval_reward = self.evaluate(step_number)
 
     def evaluate(self, step_number):
         print("""
@@ -521,7 +537,7 @@ class DIAYN():
         results_for_eval = []
         # only run one
         for i in range(1):
-            state = env.reset()
+            state = self.env.reset()
             episode_reward_sum = 0
             terminal = False
             life_lost = True
@@ -530,14 +546,14 @@ class DIAYN():
                 if life_lost:
                     action = 1
                 else:
-                    active_head, action = self.pt_get_action(step_number, state, active_head=0, evaluation=True)
-                next_state, reward, life_lost, terminal = env.step(action)
+                    action = self.pt_get_action(step_number, state, active_head=0, evaluation=True)
+                next_state, reward, life_lost, terminal = self.env.step(action)
                 evaluate_step_number += 1
                 episode_steps +=1
                 episode_reward_sum += reward
                 if not i:
                     # only save first episode
-                    frames_for_gif.append(env.ale.getScreenRGB())
+                    frames_for_gif.append(self.env.ale.getScreenRGB())
                     results_for_eval.append("%s, %s, %s, %s" %(action, reward, life_lost, terminal))
                 if not episode_steps%100:
                     print('eval', episode_steps, episode_reward_sum)
@@ -545,8 +561,8 @@ class DIAYN():
             eval_rewards.append(episode_reward_sum)
 
         print("Evaluation score:\n", np.mean(eval_rewards))
-        generate_gif(model_base_filedir, step_number, frames_for_gif, eval_rewards[0], name='test', results=results_for_eval)
-        efile = os.path.join(model_base_filedir, 'eval_rewards.txt')
+        generate_gif(info['MODEL_PATH'], step_number, frames_for_gif, eval_rewards[0], name='test', results=results_for_eval)
+        efile = os.path.join(info['MODEL_PATH'], 'eval_rewards.txt')
         with open(efile, 'a') as eval_reward_file:
             print(step_number, np.mean(eval_rewards), file=eval_reward_file)
         return np.mean(eval_rewards)
@@ -561,7 +577,7 @@ if __name__ == '__main__':
     info = {
         "GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
-        "model_path":'diayn_net', # start files with name
+        "MODEL_PATH":'diayn_net', # start files with name
         "TARGET_UPDATE":10000, # how often to update target network
         "MIN_HISTORY_TO_LEARN":50, # in environment frames
         "NORM_BY":255.,  # divide the float(of uint) by this number to normalize - max val of data is 255

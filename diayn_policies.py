@@ -1,12 +1,17 @@
 import numpy as np
 import torch
 from torch import nn as nn
+import torch.nn.functional as F
+
 import abc
 from torch.distributions import Distribution, Normal
 from dqn_model import CoreNet, HeadNet, DuelingHeadNet
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
+
+def my_ce_loss(input, target):
+    return -torch.sum(F.log_softmax(input, dim=1) * target, dim=1)
 
 def weight_init(module):
     if isinstance(module, nn.Linear):
@@ -16,20 +21,28 @@ def weight_init(module):
 def identity(x):
     return x
 
-
-
-def concat_obs_z(obs, z, num_skills):
+def concat_obs_zs(obs, z):
     """Concatenates the observation to a one-hot encoding of Z."""
+    states = []
+    for x, y in zip(obs, z):
+        states.append(concat_obs_z(x, y))
+    return states
+
+def concat_obs_z(obs, z):
+    """Concatenates the observation to a one-hot encoding of Z."""
+    return np.concatenate((obs, z), axis=0)
+
+def z_one_hot(z, num_skills):
     assert np.isscalar(z)
     z_one_hot = np.zeros(num_skills)
-    z_one_hot[z] = 1
-    return np.hstack([obs, z_one_hot])
+    z_one_hot[0][int(z)] = 1
+    return np.expand_dims(z_one_hot, axis=0)
 
-def split_aug_obs(aug_obs, num_skills):
-    """Splits an augmented observation into the observation and Z."""
-    (obs, z_one_hot) = (aug_obs[:-num_skills], aug_obs[-num_skills:])
-    z = np.where(z_one_hot == 1)[0][0]
-    return (obs, z)
+def z_one_hots(z, num_skills):
+    zs = []
+    for x in z:
+        zs.append(z_one_hot(x, num_skills))
+    return zs
     
 class QNet(nn.Module):
     def __init__(self, n_actions, network_output_size, num_channels, dueling=False):
@@ -54,7 +67,7 @@ class QNet(nn.Module):
 
 class VNet(nn.Module):
     def __init__(self, n_actions, network_output_size, num_channels, dueling=False):
-        super(QNet, self).__init__()
+        super(VNet, self).__init__()
         self.core_net = CoreNet(network_output_size=network_output_size, num_channels=num_channels)
         self.dueling = dueling
         if self.dueling:
@@ -257,6 +270,7 @@ class TanhGaussianPolicy(ExplorationPolicy):
         self.log_std = None
         self.std = std
         self.n_ensemble = n_ensemble
+        self.obs_dim = obs_dim
         if std is None:
             pass
             # last_hidden_size = obs_dim
@@ -269,13 +283,12 @@ class TanhGaussianPolicy(ExplorationPolicy):
             self.log_std = np.log(std)
             assert LOG_SIG_MIN <= self.log_std <= LOG_SIG_MAX
 
-    def get_action(self, obs_np, skill=None, deterministic=False):
-        obs_np = concat_obs_z(obs_np, skill, self.n_ensemble)
-        actions = self.get_actions(obs_np, skill, deterministic=deterministic)
+    def get_action(self, obs_np, deterministic=False):
+        actions = self.get_actions(obs_np, deterministic=deterministic)
         return actions[0]
 
-    def get_actions(self, obs_np, skill, deterministic=False):
-        return self.forward(obs_np, skill, deterministic=deterministic)
+    def get_actions(self, obs_np, deterministic=False):
+        return self.forward(obs_np, deterministic=deterministic)
     
     def get_network(self):
         return self.policy_net
@@ -283,7 +296,6 @@ class TanhGaussianPolicy(ExplorationPolicy):
     def forward(
             self,
             obs,
-            skill=None,
             reparameterize=True,
             deterministic=False,
             return_log_prob=True,
@@ -300,7 +312,6 @@ class TanhGaussianPolicy(ExplorationPolicy):
         # for i, fc in enumerate(self.fcs):
         #     h = self.hidden_activation(fc(h))
         # mean = self.last_fc(h)
-        obs = concat_obs_z(obs, skill, self.n_ensemble)
 
         mean, log_std = self.policy_net(obs)
 
@@ -342,7 +353,7 @@ class TanhGaussianPolicy(ExplorationPolicy):
             a = action.sample()
 
         return (
-            a, mean, log_std, log_prob, entropy, std,
+            a, mean, log_std, log_prob.squeeze(), entropy, std,
             mean_action_log_prob, pre_tanh_value,
         )
 
@@ -367,7 +378,6 @@ class MakeDeterministic(Policy):
 
     def get_action(self, observation, skill=None):
         return self.stochastic_policy.get_action(observation,
-                                                 skill,
                                                  deterministic=True)
 
 
