@@ -18,6 +18,7 @@ from dqn_utils import seed_everything, write_info_file, generate_gif, save_check
 from env import Environment
 from replay import ReplayMemory
 import config
+from diayn_policies import *
 
 def rolling_average(a, n=5) :
     if n == 0:
@@ -202,6 +203,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
         if total_used > 0.0:
+            if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
+                mean, _  = prior_net.get_networks()(states)
+                next_mean, _  = prior_net.get_networks()(states)
             next_q_vals = next_q_target_vals[k].data
             if info['DOUBLE_DQN']:
                 next_actions = next_q_policy_vals[k].data.max(1, True)[1]
@@ -440,7 +444,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": [],
+        "IMPROVEMENT": ['PRETRAIN'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
@@ -528,22 +532,35 @@ if __name__ == '__main__':
                                       network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                       num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
     if info['PRIOR']:
-        prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE']*2,
-                                n_actions=env.num_actions,
-                                network_output_size=info['NETWORK_INPUT_SIZE'][0],
-                                num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
-        # prior_target_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
-        #                         n_actions=env.num_actions,
-        #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
-        #                         num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
+        if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
+            prior_net = TanhGaussianPolicy(
+                        obs_dim=info['NETWORK_INPUT_SIZE'],
+                        action_dim=self.env.num_actions,
+                        n_ensemble = info['N_ENSEMBLE'],
+                        history_size = info['HISTORY_SIZE']+1,
+                        device = info['DEVICE'],
+                        if_dueling = info['DUELING'],)
+                    
+            diayn_dict = torch.load(os.path.join('diayn_net', "0000010224q.pkl"))
+            prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'].state_dict())
 
-        # discriminator = EnsembleNet(n_ensemble=1,
-        #                         n_actions=info['N_ENSEMBLE'],
-        #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
-        #                         num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
-        print("using randomized prior")
-        policy_net = NetWithPrior(policy_net, prior_net, info['PRIOR_SCALE'])
-        target_net = NetWithPrior(target_net, prior_net, info['PRIOR_SCALE'])
+        else:
+            prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE']*2,
+                                    n_actions=env.num_actions,
+                                    network_output_size=info['NETWORK_INPUT_SIZE'][0],
+                                    num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
+            # prior_target_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
+            #                         n_actions=env.num_actions,
+            #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
+            #                         num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
+
+            # discriminator = EnsembleNet(n_ensemble=1,
+            #                         n_actions=info['N_ENSEMBLE'],
+            #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
+            #                         num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
+            print("using randomized prior")
+            policy_net = NetWithPrior(policy_net, prior_net, info['PRIOR_SCALE'])
+            target_net = NetWithPrior(target_net, prior_net, info['PRIOR_SCALE'])
 
     target_net.load_state_dict(policy_net.state_dict())
 
