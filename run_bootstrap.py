@@ -215,6 +215,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 next_qs = next_q_vals.max(1)[0] # max returns a pair
 
             preds = q_policy_vals[k].gather(1, actions[:,None]).squeeze(1) 
+            # if k==0:
+            #     print(q_policy_vals[k])
 
             if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
                 active_head_one_hot = z_one_hots(np.full((info['BATCH_SIZE'], ), k), info['NETWORK_INPUT_SIZE'])
@@ -226,10 +228,10 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 next_mean, _  = prior_net(aug_next_obs)
                 #print(q_policy_vals[k].size(),mean.size())
                 preds += info['PRIOR_SCALE'] * mean.detach().gather(1, actions[:,None]).squeeze(1) 
-                if info['DOUBLE_DQN']:
-                    next_qs += info['PRIOR_SCALE'] * next_mean.detach().gather(1, next_actions).squeeze(1)
-                else:
-                    next_qs += info['PRIOR_SCALE'] * next_mean.detach().max(1)[0]
+                if not info['DOUBLE_DQN']:
+                    next_actions = torch.argmax(next_q_vals, dim=1)
+                next_qs += info['PRIOR_SCALE'] * next_mean.detach().gather(1, next_actions).squeeze(1)
+
                 
             targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')

@@ -31,13 +31,13 @@ class DIAYN():
             discount=0.99,
             reward_scale=1.0,
 
-            policy_lr=3E-4, #1e-3,
-            qf_lr=3E-4, #1e-3,
-            value_lr=1e-3,
-            discriminator_lr=1e-3,
+            policy_lr=6.25e-5, #1e-3,
+            qf_lr=6.25e-5, #1e-3,
+            value_lr=6.25e-5,
+            discriminator_lr=6.25e-5,
             optimizer_class=optim.Adam,
 
-            lr=3E-3,
+            lr=6.25e-5,
             scale_entropy=1,
             tau=0.01,
             num_skills=9,
@@ -53,7 +53,7 @@ class DIAYN():
 
             use_automatic_entropy_tuning=False,
             target_entropy=None,
-            train_policy_with_reparameterization=True,
+            train_policy_with_reparameterization=False,
             policy_mean_reg_weight=1e-3,
             policy_std_reg_weight=1e-3,
             policy_pre_activation_weight=0.,
@@ -240,7 +240,7 @@ class DIAYN():
 
         p_z = torch.sum(torch.tensor(self.p_z).to(info['DEVICE'])*active_head_one_hot_input, axis=1)
         log_p_z = torch.log(p_z+EPS)
-
+        print(empowerment_reward, -log_p_z)
         if self.add_p_z:
             empowerment_reward -= log_p_z
 
@@ -281,6 +281,7 @@ class DIAYN():
                                      return_log_prob=True)
         new_actions, policy_mean, policy_log_std, log_pi = policy_outputs[:4]
         print(policy_mean, policy_log_std, log_pi)
+        #print(torch.sum(torch.sum(aug_obs, dim=-1),dim=-1))
 
         q_pred_1, q_pred_2 = self.qf(aug_obs)
         q_value_1 = torch.tensor([q1[a] for q1, a in zip(q_pred_1, new_actions)]).to(info['DEVICE'])
@@ -579,7 +580,7 @@ if __name__ == '__main__':
         "DEVICE":device, #cpu vs gpu set by argument
         "MODEL_PATH":'diayn_net', # start files with name
         "TARGET_UPDATE":10000, # how often to update target network
-        "MIN_HISTORY_TO_LEARN":50, # in environment frames
+        "MIN_HISTORY_TO_LEARN":50000, # in environment frames
         "NORM_BY":255.,  # divide the float(of uint) by this number to normalize - max val of data is 255
         "MAX_STEPS":int(50e3), # 50e6 steps is 200e6 frames
         "MAX_EPISODE_STEPS":27000, # Orig dqn give 18k steps, Rainbow seems to give 27k steps
@@ -588,7 +589,7 @@ if __name__ == '__main__':
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "NETWORK_INPUT_SIZE":(84,84),
         "HISTORY_SIZE":4, # how many past frames to use for state input
-        "BUFFER_SIZE":int(1e3), # Buffer size for experience replay
+        "BUFFER_SIZE":int(1e6), # Buffer size for experience replay
         'EVAL_FREQUENCY': 1,#2500,
         'CHECKPOINT_EVERY_STEPS':50,#000,
         "DUELING":False, # use dueling dqn

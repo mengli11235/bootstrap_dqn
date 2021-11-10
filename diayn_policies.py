@@ -327,7 +327,7 @@ class TanhGaussianPolicy(ExplorationPolicy):
         mean_action_log_prob = None
         pre_tanh_value = None
         if deterministic:
-            a = np.argmax(mean)
+            a = np.argmax(mean, dim=-1)
         else:
             tanh_normal = TanhNormal(mean, std)
             if return_log_prob:
