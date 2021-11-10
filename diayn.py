@@ -187,7 +187,7 @@ class DIAYN():
                     }
             if not os.path.exists(info['MODEL_PATH']):
                 os.makedirs(info['MODEL_PATH'])
-            filename = os.path.join(info['MODEL_PATH'], "%010dq.pkl"%cnt)
+            filename = os.path.join(info['MODEL_PATH'], "best.pkl")
             save_checkpoint(state, filename)
 
             #replay_memory.save_buffer(buff_filename)

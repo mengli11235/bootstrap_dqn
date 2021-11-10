@@ -3,6 +3,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
+import copy
 import numpy as np
 from IPython import embed
 from collections import Counter
@@ -176,6 +177,9 @@ class ActionGetter:
                 return eps, action
 
 def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads, masks):
+    if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
+        obs = copy.deepcopy(states).astype(np.float)/info['NORM_BY']
+        next_obs = copy.deepcopy(next_states).astype(np.float)/info['NORM_BY']
     states = torch.Tensor(states.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
     next_states = torch.Tensor(next_states.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
     rewards = torch.Tensor(rewards).to(info['DEVICE'])
@@ -203,9 +207,6 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
         if total_used > 0.0:
-            if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
-                mean, _  = prior_net.get_networks()(states)
-                next_mean, _  = prior_net.get_networks()(states)
             next_q_vals = next_q_target_vals[k].data
             if info['DOUBLE_DQN']:
                 next_actions = next_q_policy_vals[k].data.max(1, True)[1]
@@ -213,7 +214,23 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             else:
                 next_qs = next_q_vals.max(1)[0] # max returns a pair
 
-            preds = q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
+            preds = q_policy_vals[k].gather(1, actions[:,None]).squeeze(1) 
+
+            if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
+                active_head_one_hot = z_one_hots(np.full((info['BATCH_SIZE'], ), k), info['NETWORK_INPUT_SIZE'])
+                aug_obs = torch.Tensor(concat_obs_zs(obs, active_head_one_hot)).to(info['DEVICE'])
+                obs = torch.Tensor(obs).to(info['DEVICE'])
+                aug_next_obs = torch.Tensor(concat_obs_zs(next_obs, active_head_one_hot)).to(info['DEVICE'])
+                next_obs = torch.Tensor(next_obs).to(info['DEVICE'])
+                mean, _  = prior_net(aug_obs)
+                next_mean, _  = prior_net(aug_next_obs)
+                #print(q_policy_vals[k].size(),mean.size())
+                preds += info['PRIOR_SCALE'] * mean.detach().gather(1, actions[:,None]).squeeze(1) 
+                if info['DOUBLE_DQN']:
+                    next_qs += info['PRIOR_SCALE'] * next_mean.detach().gather(1, next_actions).squeeze(1)
+                else:
+                    next_qs += info['PRIOR_SCALE'] * next_mean.detach().max(1)[0]
+                
             targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
             # if 'soft' in info['IMPROVEMENT']:
@@ -406,7 +423,7 @@ if __name__ == '__main__':
         "DUELING":True, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
-        "PRIOR_SCALE":10, # what to scale prior by
+        "PRIOR_SCALE":1, # what to scale prior by
         "N_ENSEMBLE":9, # number of bootstrap heads to use. when 1, this is a normal dqn
         "LEARN_EVERY_STEPS":4, # updates every 4 steps in osband
         "BERNOULLI_PROBABILITY": 0.9, # Probability of experience to go to each head - if 1, every experience goes to every head
@@ -533,16 +550,18 @@ if __name__ == '__main__':
                                       num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
     if info['PRIOR']:
         if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
-            prior_net = TanhGaussianPolicy(
-                        obs_dim=info['NETWORK_INPUT_SIZE'],
-                        action_dim=self.env.num_actions,
-                        n_ensemble = info['N_ENSEMBLE'],
-                        history_size = info['HISTORY_SIZE']+1,
-                        device = info['DEVICE'],
-                        if_dueling = info['DUELING'],)
-                    
-            diayn_dict = torch.load(os.path.join('diayn_net', "0000010224q.pkl"))
-            prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'].state_dict())
+            # prior_net = TanhGaussianPolicy(
+            #             obs_dim=info['NETWORK_INPUT_SIZE'],
+            #             action_dim=env.num_actions,
+            #             n_ensemble = info['N_ENSEMBLE'],
+            #             history_size = info['HISTORY_SIZE']+1,
+            #             device = info['DEVICE'],
+            #             if_dueling = info['DUELING'],)
+            prior_net = QNet(n_actions=env.num_actions,
+                        network_output_size=info['NETWORK_INPUT_SIZE'],
+                        num_channels=info['HISTORY_SIZE']+1, dueling=False).to(device)
+            diayn_dict = torch.load(os.path.join('diayn_net', "best.pkl"))
+            prior_net.load_state_dict(diayn_dict['policy_net_state_dict'])
 
         else:
             prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE']*2,
