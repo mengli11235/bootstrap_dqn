@@ -223,7 +223,7 @@ class DIAYN():
         # Get the q value for the observation(obs, z_one_hot) and action.
         q_pred_1, q_pred_2 = self.qf(aug_obs)
 
-        action_one_hot_input = torch.tensor(z_one_hots(action.numpy(), (1,self.action_dim))).to(info['DEVICE']).squeeze()
+        action_one_hot_input = torch.tensor(z_one_hots(action.cpu().numpy(), (1,self.action_dim))).to(info['DEVICE']).squeeze()
 
         q_value_1 = torch.sum(q_pred_1*action_one_hot_input, dim=1)
         q_value_2 = torch.sum(q_pred_2*action_one_hot_input, dim=1)
@@ -235,7 +235,7 @@ class DIAYN():
 
         # The empowerment reward is defined as the cross entropy loss between the
         # true skill and the selected skill.
-        active_head_one_hot_input = torch.tensor(z_one_hots(active_head.numpy(), (1,info['N_ENSEMBLE']))).to(info['DEVICE']).squeeze()
+        active_head_one_hot_input = torch.tensor(z_one_hots(active_head.cpu().numpy(), (1,info['N_ENSEMBLE']))).to(info['DEVICE']).squeeze()
         empowerment_reward = -1 * my_ce_loss(active_head_one_hot_input, logits)
 
         p_z = torch.sum(torch.tensor(self.p_z).to(info['DEVICE'])*active_head_one_hot_input, axis=1)
