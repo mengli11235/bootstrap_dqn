@@ -91,7 +91,7 @@ class TanhNormal(Distribution):
         Z ~ N(mean, std)
     Note: this is not very numerically stable.
     """
-    def __init__(self, normal_mean, normal_std, epsilon=1e-6):
+    def __init__(self, normal_mean, normal_std, device, epsilon=1e-6):
         """
         :param normal_mean: Mean of the normal distribution
         :param normal_std: Std of the normal distribution
@@ -101,6 +101,7 @@ class TanhNormal(Distribution):
         self.normal_std = normal_std
         self.normal = Normal(normal_mean, normal_std)
         self.epsilon = epsilon
+        self.device = device
 
     def sample_n(self, n, return_pre_tanh_value=False):
         z = self.normal.sample_n(n)
@@ -143,8 +144,8 @@ class TanhNormal(Distribution):
             self.normal_mean +
             self.normal_std *
             Normal(
-                torch.zeros(self.normal_mean.size()),
-                torch.ones(self.normal_std.size())
+                torch.zeros(self.normal_mean.size()).to(device),
+                torch.ones(self.normal_std.size()).to(device)
             ).sample()
         )
         z.requires_grad_()
@@ -269,6 +270,7 @@ class TanhGaussianPolicy(ExplorationPolicy):
 
         self.log_std = None
         self.std = std
+        self.device = device
         self.n_ensemble = n_ensemble
         self.obs_dim = obs_dim
         if std is None:
@@ -296,7 +298,7 @@ class TanhGaussianPolicy(ExplorationPolicy):
     def forward(
             self,
             obs,
-            reparameterize=True,
+            reparameterize=False,
             deterministic=False,
             return_log_prob=True,
     ):
@@ -329,7 +331,7 @@ class TanhGaussianPolicy(ExplorationPolicy):
         if deterministic:
             a = np.argmax(mean, dim=-1)
         else:
-            tanh_normal = TanhNormal(mean, std)
+            tanh_normal = TanhNormal(mean, std, self.device)
             if return_log_prob:
                 if reparameterize is True:
                     action, pre_tanh_value = tanh_normal.rsample(
