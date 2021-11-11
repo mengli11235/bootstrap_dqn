@@ -221,11 +221,11 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 aug_next_obs = torch.Tensor(concat_obs_zs(next_states.cpu().numpy(), active_head_one_hot)).to(info['DEVICE'])
                 prior_outputs = prior_net.forward(aug_obs)
                 next_prior_outputs  = prior_net.forward(aug_next_obs)
-                _, _, _, _, _, log_pi = prior_outputs[:6]
-                _, _, _, _, _, next_log_pi = prior_outputs[:6]
-                prior_pi = torch.exp(log_pi.detach())
-                prior_next_pi = torch.exp(next_log_pi.detach())
-                print(prior_pi, prior_next_pi,preds,next_qs)
+                _, _, _, _, _, prior_pi = prior_outputs[:6]
+                _, _, _, _, _, prior_next_pi = prior_outputs[:6]
+                prior_pi =prior_pi.detach()
+                prior_next_pi = prior_next_pi.detach()
+                #print(prior_pi, prior_next_pi,preds,next_qs)
 
                 #print(q_policy_vals[k].size(),mean.size())
                 preds += info['PRIOR_SCALE'] * prior_pi.gather(1, actions[:,None]).squeeze(1) 
