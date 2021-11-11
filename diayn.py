@@ -590,7 +590,7 @@ if __name__ == '__main__':
         "NETWORK_INPUT_SIZE":(84,84),
         "HISTORY_SIZE":4, # how many past frames to use for state input
         "BUFFER_SIZE":int(1e6), # Buffer size for experience replay
-        'EVAL_FREQUENCY': 1,#2500,
+        'EVAL_FREQUENCY': 25e2,#2500,
         'CHECKPOINT_EVERY_STEPS':50,#000,
         "DUELING":False, # use dueling dqn
         "N_ENSEMBLE": 9,

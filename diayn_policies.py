@@ -11,7 +11,7 @@ LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
 
 def my_ce_loss(input, target):
-    return -torch.sum(F.log_softmax(input, dim=1) * target, dim=1)
+    return -torch.mean(F.log_softmax(input, dim=1) * target, dim=1)
 
 def weight_init(module):
     if isinstance(module, nn.Linear):
@@ -351,11 +351,11 @@ class TanhGaussianPolicy(ExplorationPolicy):
                     action = tanh_normal.rsample()
                 else:
                     action = tanh_normal.sample()
-            action = torch.distributions.Categorical(logits=action)
-            a = action.sample()
+            action_dist = torch.distributions.Categorical(logits=action)
+            a = action_dist.sample()
 
         return (
-            a, mean, log_std, log_prob.squeeze(), entropy, std,
+            a, mean, log_std, log_prob.squeeze(), entropy, action,
             mean_action_log_prob, pre_tanh_value,
         )
 
