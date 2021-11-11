@@ -177,9 +177,6 @@ class ActionGetter:
                 return eps, action
 
 def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads, masks):
-    if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
-        obs = copy.deepcopy(states).astype(np.float)/info['NORM_BY']
-        next_obs = copy.deepcopy(next_states).astype(np.float)/info['NORM_BY']
     states = torch.Tensor(states.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
     next_states = torch.Tensor(next_states.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
     rewards = torch.Tensor(rewards).to(info['DEVICE'])
@@ -220,10 +217,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
 
             if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
                 active_head_one_hot = z_one_hots(np.full((info['BATCH_SIZE'], ), k), info['NETWORK_INPUT_SIZE'])
-                aug_obs = torch.Tensor(concat_obs_zs(copy.deepcopy(obs), active_head_one_hot)).to(info['DEVICE'])
-                obs = torch.Tensor(obs).to(info['DEVICE'])
-                aug_next_obs = torch.Tensor(concat_obs_zs(copy.deepcopy(next_obs), active_head_one_hot)).to(info['DEVICE'])
-                next_obs = torch.Tensor(next_obs).to(info['DEVICE'])
+                aug_obs = torch.Tensor(concat_obs_zs(states.cpu.numpy(), active_head_one_hot)).to(info['DEVICE'])
+                aug_next_obs = torch.Tensor(concat_obs_zs(next_states.cpu.numpy(), active_head_one_hot)).to(info['DEVICE'])
                 prior_outputs = prior_net.forward(aug_obs)
                 next_prior_outputs  = prior_net.forward(aug_next_obs)
                 _, _, _, _, _, log_pi = prior_outputs[:6]
