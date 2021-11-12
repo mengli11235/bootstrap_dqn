@@ -187,16 +187,22 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     # min history to learn is 200,000 frames in dqn - 50000 steps
     losses = [0.0 for _ in range(info['N_ENSEMBLE'])]
 
+    opt.zero_grad()
+    q_policy_vals = policy_net(states, None)
+    next_q_target_vals = target_net(next_states, None)
+    next_q_policy_vals = policy_net(next_states, None)
+
+    cnt_losses = []
     if 'DISCRIMINATOR' in info['IMPROVEMENT']:
         opt_discriminator.zero_grad()
         logits = torch.softmax(discriminator(states, 0), dim=-1)
         prior_scale = 1-logits.detach()
+        prior_scale = prior_scale.unsqueeze(-1)
         discriminator_loss = ce_loss(logits, active_heads)
-    opt.zero_grad()
-    q_policy_vals = policy_net(states, None, prior_scale)
-    next_q_target_vals = target_net(next_states, None, prior_scale)
-    next_q_policy_vals = policy_net(next_states, None, prior_scale)
-    cnt_losses = []
+        q_policy_vals += prior_scale
+        next_q_target_vals += prior_scale
+        next_q_policy_vals += prior_scale
+
     if 'entropy' in info['IMPROVEMENT']:
         prior_q_policy_vals = policy_net.return_prior(states, None)
         prior_next_q_target_vals = target_net.return_prior(next_states, None)
@@ -426,7 +432,7 @@ if __name__ == '__main__':
         "DUELING":True, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
-        "PRIOR_SCALE":1, # what to scale prior by
+        "PRIOR_SCALE":0, # what to scale prior by
         "N_ENSEMBLE":9, # number of bootstrap heads to use. when 1, this is a normal dqn
         "LEARN_EVERY_STEPS":4, # updates every 4 steps in osband
         "BERNOULLI_PROBABILITY": 0.9, # Probability of experience to go to each head - if 1, every experience goes to every head
