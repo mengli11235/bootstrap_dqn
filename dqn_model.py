@@ -121,25 +121,39 @@ class NetWithPrior(nn.Module):
         if self.prior_scale > 0.:
             self.prior = prior
 
-    def forward(self, x, k):
+    # def forward(self, x, k):
+    #     if hasattr(self.net, "net_list"):
+    #         if k is not None:
+    #             if self.prior_scale > 0.:
+    #                 return self.net(x, k) + self.prior_scale * self.prior(x, k).detach()
+    #             else:
+    #                 return self.net(x, k)
+    #         else:
+    #             core_cache = self.net._core(x)
+    #             net_heads = self.net._heads(core_cache)
+    #             if self.prior_scale <= 0.:
+    #                 return net_heads
+    #             else:
+    #                 prior_core_cache = self.prior._core(x)
+    #                 prior_heads = self.prior._heads(prior_core_cache)
+    #                 return [n + self.prior_scale * p.detach() for n, p in zip(net_heads, prior_heads)]
+    #     else:
+    #         raise ValueError("Only works with a net_list model")
+
+    def forward(self, x, k, prior_scale=1.):
         if hasattr(self.net, "net_list"):
             if k is not None:
-                if self.prior_scale > 0.:
-                    return self.net(x, k) + self.prior_scale * self.prior(x, k).detach()
-                else:
-                    return self.net(x, k)
+                    return self.net(x, k) + prior_scale * self.prior(x, k).detach()
             else:
                 core_cache = self.net._core(x)
                 net_heads = self.net._heads(core_cache)
-                if self.prior_scale <= 0.:
-                    return net_heads
-                else:
-                    prior_core_cache = self.prior._core(x)
-                    prior_heads = self.prior._heads(prior_core_cache)
-                    return [n + self.prior_scale * p.detach() for n, p in zip(net_heads, prior_heads)]
+
+                prior_core_cache = self.prior._core(x)
+                prior_heads = self.prior._heads(prior_core_cache)
+                return [n + pr * p.detach() for n, pr, p in zip(net_heads, prior_scale, prior_heads)]
         else:
             raise ValueError("Only works with a net_list model")
-            
+
     def return_prior(self, x, k):
         if hasattr(self.net, "net_list"):
             if k is not None:
