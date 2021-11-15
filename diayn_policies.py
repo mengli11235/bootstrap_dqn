@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 import abc
 from torch.distributions import Distribution, Normal
-from dqn_model import CoreNet, HeadNet, DuelingHeadNet
+from dqn_model import CoreNet, HeadNet, DuelingHeadNet, EnsembleNet
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
@@ -262,9 +262,14 @@ class TanhGaussianPolicy(ExplorationPolicy):
             init_w=1e-3,
             **kwargs
     ):
-        self.policy_net = QNet(n_actions=action_dim,
-                                network_output_size=obs_dim,
-                                num_channels=history_size, dueling=if_dueling).to(device)
+        # self.policy_net = QNet(n_actions=action_dim,
+        #                         network_output_size=obs_dim[0],
+        #                         num_channels=history_size, dueling=if_dueling).to(device)
+        
+        self.policy_net = EnsembleNet(n_ensemble=n_ensemble*2,
+                        n_actions=action_dim,
+                        network_output_size=obs_dim[0],
+                        num_channels=history_size, dueling=if_dueling).to(device)
         if policy_net:
             self.policy_net.load_state_dict(policy_net.state_dict())
 
@@ -285,12 +290,13 @@ class TanhGaussianPolicy(ExplorationPolicy):
             self.log_std = np.log(std)
             assert LOG_SIG_MIN <= self.log_std <= LOG_SIG_MAX
 
-    def get_action(self, obs_np, deterministic=False):
-        actions = self.get_actions(obs_np, deterministic=deterministic)
+    def get_action(self, obs_np, k, deterministic=False):
+        actions = self.get_actions(obs_np, k, deterministic=deterministic)
         return actions[0]
 
-    def get_actions(self, obs_np, deterministic=False):
-        return self.forward(obs_np, deterministic=deterministic)
+    def get_actions(self, obs_np, k, deterministic=False):
+        #print(k)
+        return self.forward(obs_np, k, deterministic=deterministic)
     
     def get_network(self):
         return self.policy_net
@@ -298,12 +304,14 @@ class TanhGaussianPolicy(ExplorationPolicy):
     def forward(
             self,
             obs,
+            k=0,
             reparameterize=False,
             deterministic=False,
             return_log_prob=True,
+            return_all_heads=False,
     ):
         """
-        :param obs: Observation
+        :param obs: Observation  
         :param deterministic: If True, do not sample
         :param return_log_prob: If True, return a sample and its log probability
         """
@@ -315,21 +323,38 @@ class TanhGaussianPolicy(ExplorationPolicy):
         #     h = self.hidden_activation(fc(h))
         # mean = self.last_fc(h)
 
-        mean, log_std = self.policy_net(obs)
+        means_log_stds = self.policy_net(obs,k=None)
+        if return_all_heads:
+            prior_pis = []
+            for i in range(self.n_ensemble):
+                k = torch.zeros(obs.size(dim=0)).to(self.device)+i
+                _, _, _, _, _, prior_pi = self.get_result(means_log_stds, k)[:6]
+                prior_pis.append(prior_pi)
+            return prior_pis
 
+        else:
+            return self.get_result(means_log_stds, k)
+
+    def get_result(self, means_log_stds, k, reparameterize=False, deterministic=False, return_log_prob=True):
+        if np.isscalar(k):
+            mean = means_log_stds[k]
+            log_std = means_log_stds[k+self.n_ensemble]
+        else:
+            means_log_stds = torch.stack(means_log_stds).transpose(0,1).to(self.device)
+            mean = torch.stack([means_log_std[i] for means_log_std, i in zip(means_log_stds, k)]).to(self.device)
+            log_std = torch.stack([means_log_std[i+self.n_ensemble] for means_log_std, i in zip(means_log_stds, k)]).to(self.device)
         if self.std is None:
             log_std = torch.clamp(log_std, LOG_SIG_MIN, LOG_SIG_MAX)
             std = torch.exp(log_std)
         else:
             std = self.std
             log_std = self.log_std
-
         log_prob = None
         entropy = None
         mean_action_log_prob = None
         pre_tanh_value = None
         if deterministic:
-            a = np.argmax(mean, dim=-1)
+            a = np.argmax(mean, axis=-1)
         else:
             tanh_normal = TanhNormal(mean, std, self.device)
             if return_log_prob:

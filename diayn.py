@@ -76,7 +76,7 @@ class DIAYN():
                                 obs_dim=info['NETWORK_INPUT_SIZE'],
                                 action_dim=self.env.num_actions,
                                 n_ensemble = info['N_ENSEMBLE'],
-                                history_size = info['HISTORY_SIZE']+1,
+                                history_size = info['HISTORY_SIZE'],
                                 device = info['DEVICE'],
                                 if_dueling = info['DUELING'],)
 
@@ -240,7 +240,7 @@ class DIAYN():
 
         p_z = torch.sum(torch.tensor(self.p_z).to(info['DEVICE'])*active_head_one_hot_input, axis=1)
         log_p_z = torch.log(p_z+EPS)
-        print(empowerment_reward, -log_p_z)
+        #print(empowerment_reward, -log_p_z)
         if self.add_p_z:
             empowerment_reward -= log_p_z
 
@@ -276,11 +276,11 @@ class DIAYN():
                                                                        active_head_one_hot = active_head_one_hot,)
 
         # Make sure policy accounts for squashing functions like tanh correctly!
-        policy_outputs = self.policy.forward(aug_obs,
+        policy_outputs = self.policy.forward(observation, k=active_head,
                                      reparameterize=self.train_policy_with_reparameterization,
                                      return_log_prob=True)
         new_actions, policy_mean, policy_log_std, log_pi = policy_outputs[:4]
-        print(policy_mean, policy_log_std, log_pi)
+        #print(policy_mean, policy_log_std, log_pi)
         #print(torch.sum(torch.sum(aug_obs, dim=-1),dim=-1))
 
         q_pred_1, q_pred_2 = self.qf(aug_obs)
@@ -425,16 +425,17 @@ class DIAYN():
         Returns:
             An integer between 0 and n_actions
         """
-        state = state.astype(np.float)/info['NORM_BY']
-        active_head = z_one_hot(active_head, info['NETWORK_INPUT_SIZE'])
-        state = concat_obs_z(state, active_head)
-        state = torch.Tensor(state)[None,:].to(info['DEVICE'])
+        # state = state.astype(np.float)/info['NORM_BY']
+        # active_head = z_one_hot(active_head, info['NETWORK_INPUT_SIZE'])
+        # state = concat_obs_z(state, active_head)
+        state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
+        # state = torch.Tensor(state)[None,:].to(info['DEVICE'])
         #if not evaluation:
             # self.higher_level_policy.eval()
             # logits = self.higher_level_policy(states, 0)
             # active_heads = OneHotCategorical(logits=logits)
             # active_head = active_heads.sample()
-        a = self.policy.get_action(state)
+        a = self.policy.get_action(state, active_head)
         return a
 
     def batch_upadte(self, rewards, terminals, obs, actions, next_obs, active_head):
@@ -578,7 +579,7 @@ if __name__ == '__main__':
     info = {
         "GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
-        "MODEL_PATH":'diayn_net', # start files with name
+        "MODEL_PATH":'diayn_net1', # start files with name
         "TARGET_UPDATE":10000, # how often to update target network
         "MIN_HISTORY_TO_LEARN":50000, # in environment frames
         "NORM_BY":255.,  # divide the float(of uint) by this number to normalize - max val of data is 255
@@ -590,7 +591,7 @@ if __name__ == '__main__':
         "NETWORK_INPUT_SIZE":(84,84),
         "HISTORY_SIZE":4, # how many past frames to use for state input
         "BUFFER_SIZE":int(1e6), # Buffer size for experience replay
-        'EVAL_FREQUENCY': 25e2,#2500,
+        'EVAL_FREQUENCY': 2500,#2500,
         'CHECKPOINT_EVERY_STEPS':50,#000,
         "DUELING":False, # use dueling dqn
         "N_ENSEMBLE": 9,

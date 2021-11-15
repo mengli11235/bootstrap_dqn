@@ -203,6 +203,12 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         next_q_target_vals += prior_scale
         next_q_policy_vals += prior_scale
 
+    if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
+        prior_pi = prior_net.forward(states, return_all_heads=True).detach()
+        prior_next_pi  = prior_net.forward(next_states, return_all_heads=True).detach()
+        q_policy_vals += info['PRIOR_SCALE'] * prior_pi
+        next_q_target_vals += info['PRIOR_SCALE'] * prior_next_pi
+
     if 'entropy' in info['IMPROVEMENT']:
         prior_q_policy_vals = policy_net.return_prior(states, None)
         prior_next_q_target_vals = target_net.return_prior(next_states, None)
@@ -222,23 +228,11 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             # if k==0:
             #     print(q_policy_vals[k])
 
-            if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
-                active_head_one_hot = z_one_hots(np.full((info['BATCH_SIZE'], ), k), info['NETWORK_INPUT_SIZE'])
-                aug_obs = torch.Tensor(concat_obs_zs(states.cpu().numpy(), active_head_one_hot)).to(info['DEVICE'])
-                aug_next_obs = torch.Tensor(concat_obs_zs(next_states.cpu().numpy(), active_head_one_hot)).to(info['DEVICE'])
-                prior_outputs = prior_net.forward(aug_obs)
-                next_prior_outputs  = prior_net.forward(aug_next_obs)
-                _, _, _, _, _, prior_pi = prior_outputs[:6]
-                _, _, _, _, _, prior_next_pi = prior_outputs[:6]
-                prior_pi =prior_pi.detach()
-                prior_next_pi = prior_next_pi.detach()
-                #print(prior_pi, prior_next_pi,preds,next_qs)
-
-                #print(q_policy_vals[k].size(),mean.size())
-                preds += info['PRIOR_SCALE'] * prior_pi.gather(1, actions[:,None]).squeeze(1) 
-                if not info['DOUBLE_DQN']:
-                    next_actions = torch.argmax(next_q_vals, dim=1)
-                next_qs += info['PRIOR_SCALE'] * prior_next_pi.gather(1, next_actions).squeeze(1)
+            # if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
+            #     preds += info['PRIOR_SCALE'] * prior_pi[k].gather(1, actions[:,None]).squeeze(1) 
+            #     if not info['DOUBLE_DQN']:
+            #         next_actions = torch.argmax(next_q_vals, dim=1)
+            #     next_qs += info['PRIOR_SCALE'] * prior_next_pi[k].gather(1, next_actions).squeeze(1)
 
             targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
@@ -429,10 +423,11 @@ if __name__ == '__main__':
         "GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
+        "PRETRAIN_MODEL_PATH":'diayn_net', # start files with name
         "DUELING":True, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
-        "PRIOR_SCALE":0, # what to scale prior by
+        "PRIOR_SCALE":0.01, # what to scale prior by
         "N_ENSEMBLE":9, # number of bootstrap heads to use. when 1, this is a normal dqn
         "LEARN_EVERY_STEPS":4, # updates every 4 steps in osband
         "BERNOULLI_PROBABILITY": 0.9, # Probability of experience to go to each head - if 1, every experience goes to every head
@@ -470,7 +465,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['DISCRIMINATOR'],
+        "IMPROVEMENT": ['PRETRAIN'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
@@ -558,22 +553,22 @@ if __name__ == '__main__':
                                       network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                       num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
     if info['PRIOR']:
-        if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists('diayn_net'):
+        if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
             prior_net = TanhGaussianPolicy(
                         obs_dim=info['NETWORK_INPUT_SIZE'],
                         action_dim=env.num_actions,
                         n_ensemble = info['N_ENSEMBLE'],
-                        history_size = info['HISTORY_SIZE']+1,
+                        history_size = info['HISTORY_SIZE'],
                         device = info['DEVICE'],
                         if_dueling = False,)
             # prior_net = QNet(n_actions=env.num_actions,
             #             network_output_size=info['NETWORK_INPUT_SIZE'],
             #             num_channels=info['HISTORY_SIZE']+1, dueling=False).to(device)
-            diayn_dict = torch.load(os.path.join('diayn_net', "best.pkl"))
+            diayn_dict = torch.load(os.path.join(info['PRETRAIN_MODEL_PATH'], "best.pkl"))
             prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'])
 
         else:
-            prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE']*2,
+            prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
                                     n_actions=env.num_actions,
                                     network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                     num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
