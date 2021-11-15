@@ -196,7 +196,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     if 'DISCRIMINATOR' in info['IMPROVEMENT']:
         opt_discriminator.zero_grad()
         logits = torch.softmax(discriminator(states, 0), dim=-1)
-        prior_scale = logits.detach()
+        prior_scale = 1-logits.detach()
         prior_scale = prior_scale.unsqueeze(-1)
         discriminator_loss = ce_loss(logits, active_heads)
         q_policy_vals += prior_scale
