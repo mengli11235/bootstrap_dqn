@@ -565,7 +565,7 @@ if __name__ == '__main__':
             #             network_output_size=info['NETWORK_INPUT_SIZE'],
             #             num_channels=info['HISTORY_SIZE']+1, dueling=False).to(device)
             diayn_dict = torch.load(os.path.join(info['PRETRAIN_MODEL_PATH'], "best.pkl"))
-            prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'])
+            #prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'])
 
         else:
             prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
