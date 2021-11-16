@@ -204,8 +204,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         next_q_policy_vals += prior_scale
 
     if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
-        prior_pi = prior_net.forward(states, return_all_heads=True).detach()
-        prior_next_pi  = prior_net.forward(next_states, return_all_heads=True).detach()
+        prior_pi = prior_net.forward(states, return_all_heads=True)
+        prior_next_pi  = prior_net.forward(next_states, return_all_heads=True)
         q_policy_vals += info['PRIOR_SCALE'] * prior_pi
         next_q_target_vals += info['PRIOR_SCALE'] * prior_next_pi
 
