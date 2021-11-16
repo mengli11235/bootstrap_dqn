@@ -427,7 +427,7 @@ if __name__ == '__main__':
         "DUELING":True, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
-        "PRIOR_SCALE":0.01, # what to scale prior by
+        "PRIOR_SCALE":1, # what to scale prior by
         "N_ENSEMBLE":9, # number of bootstrap heads to use. when 1, this is a normal dqn
         "LEARN_EVERY_STEPS":4, # updates every 4 steps in osband
         "BERNOULLI_PROBABILITY": 0.9, # Probability of experience to go to each head - if 1, every experience goes to every head
@@ -565,7 +565,7 @@ if __name__ == '__main__':
             #             network_output_size=info['NETWORK_INPUT_SIZE'],
             #             num_channels=info['HISTORY_SIZE']+1, dueling=False).to(device)
             diayn_dict = torch.load(os.path.join(info['PRETRAIN_MODEL_PATH'], "best.pkl"))
-            #prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'])
+            prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'])
 
         else:
             prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
