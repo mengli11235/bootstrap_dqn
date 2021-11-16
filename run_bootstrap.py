@@ -423,7 +423,7 @@ if __name__ == '__main__':
         "GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
-        "PRETRAIN_MODEL_PATH":'diayn_net', # start files with name
+        "PRETRAIN_MODEL_PATH":'diayn_net1', # start files with name
         "DUELING":True, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
