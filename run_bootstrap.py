@@ -206,8 +206,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
         prior_pi = prior_net.forward(states, return_all_heads=True)
         prior_next_pi  = prior_net.forward(next_states, return_all_heads=True)
-        q_policy_vals += info['PRIOR_SCALE'] * prior_pi
-        next_q_target_vals += info['PRIOR_SCALE'] * prior_next_pi
+#         q_policy_vals += info['PRIOR_SCALE'] * prior_pi
+#         next_q_target_vals += info['PRIOR_SCALE'] * prior_next_pi
 
     if 'entropy' in info['IMPROVEMENT']:
         prior_q_policy_vals = policy_net.return_prior(states, None)
@@ -228,11 +228,11 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             # if k==0:
             #     print(q_policy_vals[k])
 
-            # if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
-            #     preds += info['PRIOR_SCALE'] * prior_pi[k].gather(1, actions[:,None]).squeeze(1) 
-            #     if not info['DOUBLE_DQN']:
-            #         next_actions = torch.argmax(next_q_vals, dim=1)
-            #     next_qs += info['PRIOR_SCALE'] * prior_next_pi[k].gather(1, next_actions).squeeze(1)
+            if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
+                preds += info['PRIOR_SCALE'] * prior_pi[k].gather(1, actions[:,None]).squeeze(1) 
+                if not info['DOUBLE_DQN']:
+                    next_actions = torch.argmax(next_q_vals, dim=1)
+                next_qs += info['PRIOR_SCALE'] * prior_next_pi[k].gather(1, next_actions).squeeze(1)
 
             targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
