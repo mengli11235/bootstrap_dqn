@@ -327,7 +327,7 @@ class TanhGaussianPolicy(ExplorationPolicy):
         if return_all_heads:
             prior_pis = []
             for i in range(self.n_ensemble):
-                k = torch.zeros(obs.size(dim=0)).to(self.device)+i
+                k = torch.zeros(obs.size(dim=0)).long().to(self.device)+i
                 _, _, _, _, _, prior_pi = self.get_result(means_log_stds, k)[:6]
                 prior_pis.append(prior_pi)
             return prior_pis
