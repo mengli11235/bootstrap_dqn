@@ -204,8 +204,12 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         next_q_policy_vals += prior_scale
 
     if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
-        prior_pi = prior_net.forward(states, return_all_heads=True)
-        prior_next_pi  = prior_net.forward(next_states, return_all_heads=True)
+        if 'PRIOR' in info['IMPROVEMENT']:
+            prior_pi = prior_net(states, None)
+            prior_next_pi = prior_net(next_states, None)
+        else:
+            prior_pi = prior_net.forward(states, return_all_heads=True)
+            prior_next_pi  = prior_net.forward(next_states, return_all_heads=True)
         #print(prior_next_pi[0], next_q_target_vals[0])
 #         q_policy_vals += info['PRIOR_SCALE'] * prior_pi
 #         next_q_target_vals += info['PRIOR_SCALE'] * prior_next_pi
@@ -466,7 +470,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['PRETRAIN'],
+        "IMPROVEMENT": ['PRIOR', 'PRETRAIN'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
@@ -554,7 +558,7 @@ if __name__ == '__main__':
                                       network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                       num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
     if info['PRIOR']:
-        if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
+        if 'PRETRAIN' in info['IMPROVEMENT'] and 'PRIOR' not in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
             prior_net = TanhGaussianPolicy(
                         obs_dim=info['NETWORK_INPUT_SIZE'],
                         action_dim=env.num_actions,
