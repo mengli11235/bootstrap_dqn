@@ -577,9 +577,9 @@ if __name__ == '__main__':
     print("running on %s"%device)
 
     info = {
-        "GAME":'roms/freeway.bin', # gym prefix
+        "GAME":'roms/breakout.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
-        "MODEL_PATH":'diayn_net1', # start files with name
+        "MODEL_PATH":'diayn_net2', # start files with name
         "TARGET_UPDATE":10000, # how often to update target network
         "MIN_HISTORY_TO_LEARN":50000, # in environment frames
         "NORM_BY":255.,  # divide the float(of uint) by this number to normalize - max val of data is 255

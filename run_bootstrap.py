@@ -425,7 +425,7 @@ if __name__ == '__main__':
 
     info = {
         #"GAME":'roms/breakout.bin', # gym prefix
-        "GAME":'roms/freeway.bin', # gym prefix
+        "GAME":'roms/breakout.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "PRETRAIN_MODEL_PATH":'diayn_net1', # start files with name
