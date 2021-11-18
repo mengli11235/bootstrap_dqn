@@ -203,7 +203,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         next_q_target_vals += prior_scale
         next_q_policy_vals += prior_scale
 
-    if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
+    if 'PRETRAIN' in info['IMPROVEMENT']:
         if 'PRIOR' in info['IMPROVEMENT']:
             prior_pi = prior_net(states, None)
             prior_next_pi = prior_net(next_states, None)
@@ -233,7 +233,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             # if k==0:
             #     print(q_policy_vals[k])
 
-            if 'PRETRAIN' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
+            if 'PRETRAIN' in info['IMPROVEMENT']:
                 preds += info['PRIOR_SCALE'] * prior_pi[k].gather(1, actions[:,None]).squeeze(1) 
                 if not info['DOUBLE_DQN']:
                     next_actions = torch.argmax(next_q_vals, dim=1)
@@ -428,7 +428,7 @@ if __name__ == '__main__':
         "GAME":'roms/breakout.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
-        "PRETRAIN_MODEL_PATH":'diayn_net1', # start files with name
+        "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
         "DUELING":True, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
@@ -470,7 +470,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['PRETRAIN', 'PRIOR'],
+        "IMPROVEMENT": ['PRETRAIN', 'LOAD'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
@@ -558,7 +558,7 @@ if __name__ == '__main__':
                                       network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                       num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
     if info['PRIOR']:
-        if 'PRETRAIN' in info['IMPROVEMENT'] and 'PRIOR' not in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
+        if 'PRETRAIN' in info['IMPROVEMENT'] and 'PRIOR' not in info['IMPROVEMENT']:
             prior_net = TanhGaussianPolicy(
                         obs_dim=info['NETWORK_INPUT_SIZE'],
                         action_dim=env.num_actions,
@@ -569,8 +569,9 @@ if __name__ == '__main__':
             # prior_net = QNet(n_actions=env.num_actions,
             #             network_output_size=info['NETWORK_INPUT_SIZE'],
             #             num_channels=info['HISTORY_SIZE']+1, dueling=False).to(device)
-            diayn_dict = torch.load(os.path.join(info['PRETRAIN_MODEL_PATH'], "best.pkl"))
-            #prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'])
+            if 'LOAD' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
+                diayn_dict = torch.load(os.path.join(info['PRETRAIN_MODEL_PATH'], "best.pkl"))
+                prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'])
 
         else:
             prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
