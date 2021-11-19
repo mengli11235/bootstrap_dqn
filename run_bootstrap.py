@@ -196,10 +196,11 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     if 'DISCRIMINATOR' in info['IMPROVEMENT']:
         opt_discriminator.zero_grad()
         logits = torch.softmax(discriminator(states, 0), dim=-1)
-        next_logits = torch.softmax(discriminator(next_states, 0), dim=-1)
+        #print(active_heads, logits)
+        # next_logits = torch.softmax(discriminator(next_states, 0), dim=-1)
 
-        prior_pi = (1-logits.detach()).transpose(0,1)
-        prior_next_pi = (1-next_logits.detach()).transpose(0,1)
+        # prior_pi = (1-logits.detach()).transpose(0,1)
+        # prior_next_pi = (1-next_logits.detach()).transpose(0,1)
         discriminator_loss = ce_loss(logits, active_heads)
 
 
@@ -233,7 +234,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             # if k==0:
             #     print(q_policy_vals[k])
 
-            if 'PRETRAIN' in info['IMPROVEMENT'] or 'DISCRIMINATOR' in info['IMPROVEMENT']:
+            if 'PRETRAIN' in info['IMPROVEMENT']:
                 if 'PRETRAIN' in info['IMPROVEMENT']:
                     prior_preds = prior_pi[k].gather(1, actions[:,None]).squeeze(1)
                     next_prior_preds = prior_next_pi[k].gather(1, next_actions).squeeze(1)
@@ -307,8 +308,12 @@ def train(step_number, last_save):
             start_steps = step_number
             st = time.time()
             episode_reward_sum = 0
-            random_state.shuffle(heads)
-            active_head = heads[0]
+            if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
+                logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
+                active_head = torch.argmin(logits, dim=-1).item()
+            else:
+                random_state.shuffle(heads)
+                active_head = heads[0]
             epoch_num += 1
             ep_eps_list = []
             ptloss_list = []
@@ -391,7 +396,12 @@ def evaluate(step_number):
             if life_lost:
                 action = 1
             else:
-                eps,action = action_getter.pt_get_action(step_number, state, active_head=None, evaluation=True)
+                active_head=None
+                if 'DISCRIMINATOR' in info['IMPROVEMENT']:
+                    logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
+                    action_head = torch.argmax(logits, dim=-1).item()
+                    print(action_head)
+                eps,action = action_getter.pt_get_action(step_number, state, active_head=active_head, evaluation=True)
             next_state, reward, life_lost, terminal = env.step(action)
             # if next_state[-1].tobytes() not in eval_states:
             #     eval_states.append(next_state[-1].tobytes())

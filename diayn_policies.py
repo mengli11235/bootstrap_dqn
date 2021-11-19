@@ -11,7 +11,7 @@ LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
 
 def my_ce_loss(input, target):
-    return -torch.mean(F.log_softmax(input, dim=1) * target, dim=1)
+    return -torch.sum(F.log_softmax(input, dim=1) * target, dim=1)
 
 def weight_init(module):
     if isinstance(module, nn.Linear):
