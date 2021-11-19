@@ -196,6 +196,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     if 'DISCRIMINATOR' in info['IMPROVEMENT']:
         opt_discriminator.zero_grad()
         logits = torch.softmax(discriminator(states, 0), dim=-1)
+        masks = logits
         #print(active_heads, logits)
         # next_logits = torch.softmax(discriminator(next_states, 0), dim=-1)
 
