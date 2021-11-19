@@ -311,12 +311,12 @@ def train(step_number, last_save):
             start_steps = step_number
             st = time.time()
             episode_reward_sum = 0
-            # if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
-            #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
-            #     active_head = torch.argmin(logits, dim=-1).item()
-            # else:
-            random_state.shuffle(heads)
-            active_head = heads[0]
+            if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
+                logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
+                active_head = torch.argmin(logits, dim=-1).item()
+            else:
+                random_state.shuffle(heads)
+                active_head = heads[0]
             epoch_num += 1
             ep_eps_list = []
             ptloss_list = []
@@ -325,9 +325,9 @@ def train(step_number, last_save):
                     action = 1
                     eps = 0
                 else:
-                    if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
-                        logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
-                        active_head = torch.argmin(logits, dim=-1).item()
+                    # if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
+                    #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
+                    #     active_head = torch.argmin(logits, dim=-1).item()
                     eps,action = action_getter.pt_get_action(step_number, state=state, active_head=active_head)
                 ep_eps_list.append(eps)
                 next_state, reward, life_lost, terminal = env.step(action)
