@@ -196,12 +196,12 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     if 'DISCRIMINATOR' in info['IMPROVEMENT']:
         opt_discriminator.zero_grad()
         logits = torch.softmax(discriminator(states, 0), dim=-1)
-        prior_scale = 1-logits.detach()
-        prior_scale = prior_scale.unsqueeze(-1)
+        next_logits = torch.softmax(discriminator(next_states, 0), dim=-1)
+
+        prior_pi = (1-logits.detach()).unsqueeze(-1)
+        next_prior_pi = (1-next_logits.detach()).unsqueeze(-1)
         discriminator_loss = ce_loss(logits, active_heads)
-        q_policy_vals += prior_scale
-        next_q_target_vals += prior_scale
-        next_q_policy_vals += prior_scale
+
 
     if 'PRETRAIN' in info['IMPROVEMENT']:
         if 'PRIOR' in info['IMPROVEMENT']:
@@ -233,7 +233,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             # if k==0:
             #     print(q_policy_vals[k])
 
-            if 'PRETRAIN' in info['IMPROVEMENT']:
+            if 'PRETRAIN' in info['IMPROVEMENT'] or 'DISCRIMINATOR' in info['IMPROVEMENT']:
                 preds += info['PRIOR_SCALE'] * prior_pi[k].gather(1, actions[:,None]).squeeze(1) 
                 if not info['DOUBLE_DQN']:
                     next_actions = torch.argmax(next_q_vals, dim=1)
@@ -470,7 +470,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['PRETRAIN', 'LOAD'],
+        "IMPROVEMENT": ['DISCRIMINATOR'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
@@ -589,9 +589,9 @@ if __name__ == '__main__':
                                     num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
             opt_discriminator = optim.Adam(discriminator.parameters(), lr=info['ADAM_LEARNING_RATE'])
 
-            print("using randomized prior")
-            policy_net = NetWithPrior(policy_net, prior_net, info['PRIOR_SCALE'])
-            target_net = NetWithPrior(target_net, prior_net, info['PRIOR_SCALE'])
+            # print("using randomized prior")
+            # policy_net = NetWithPrior(policy_net, prior_net, info['PRIOR_SCALE'])
+            # target_net = NetWithPrior(target_net, prior_net, info['PRIOR_SCALE'])
 
     target_net.load_state_dict(policy_net.state_dict())
 
