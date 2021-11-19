@@ -404,7 +404,6 @@ def evaluate(step_number):
                 if 'DISCRIMINATOR' in info['IMPROVEMENT']:
                     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                     action_head = torch.argmax(logits, dim=-1).item()
-                    print(action_head)
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=active_head, evaluation=True)
             next_state, reward, life_lost, terminal = env.step(action)
             # if next_state[-1].tobytes() not in eval_states:
