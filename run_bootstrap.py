@@ -297,6 +297,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
 def train(step_number, last_save):
     """Contains the training and evaluation loops"""
     epoch_num = len(perf['steps'])
+    highest_eval_score = -np.inf
+
     while step_number < info['MAX_STEPS']:
         ########################
         ####### Training #######
@@ -373,13 +375,13 @@ def train(step_number, last_save):
                 matplotlib_plot_all(perf)
 #                 with open('rewards.txt', 'a') as reward_file:
 #                     print(len(perf['episode_reward']), step_number, perf['avg_rewards'][-1], file=reward_file)
-        avg_eval_reward = evaluate(step_number)
+        avg_eval_reward, highest_eval_score = evaluate(step_number, highest_eval_score)
         perf['eval_rewards'].append(avg_eval_reward)
         #perf['eval_num_states'].append(len(eval_states))
         perf['eval_steps'].append(step_number)
         matplotlib_plot_all(perf)
 
-def evaluate(step_number):
+def evaluate(step_number, highest_eval_score):
     print("""
          #########################
          ####### Evaluation ######
@@ -388,7 +390,6 @@ def evaluate(step_number):
     eval_rewards = []
     evaluate_step_number = 0
     frames_for_gif = []
-    results_for_eval = []
     # only run one
     for i in range(info['NUM_EVAL_EPISODES']):
         state = env.reset()
@@ -411,23 +412,25 @@ def evaluate(step_number):
             evaluate_step_number += 1
             episode_steps +=1
             episode_reward_sum += reward
-            if not i:
-                # only save first episode
-                frames_for_gif.append(env.ale.getScreenRGB())
-                results_for_eval.append("%s, %s, %s, %s" %(action, reward, life_lost, terminal))
+            # only save first episode
+            frames_for_gif.append(env.ale.getScreenRGB())
             if not episode_steps%100:
                 print('eval', episode_steps, episode_reward_sum)
             state = next_state
         eval_rewards.append(episode_reward_sum)
+        if episode_reward_sum > highest_eval_score:
+            highest_eval_score = episode_reward_sum
+            generate_gif(model_base_filedir, 0, frames_for_gif, 0, name='test')
+        frames_for_gif = []
+
 
     print("Evaluation score:\n", np.mean(eval_rewards))
-    generate_gif(model_base_filedir, step_number, frames_for_gif, eval_rewards[0], name='test', results=results_for_eval)
 
     # Show the evaluation score in tensorboard
     efile = os.path.join(model_base_filedir, 'eval_rewards.txt')
     with open(efile, 'a') as eval_reward_file:
         print(step_number, np.mean(eval_rewards), file=eval_reward_file)
-    return np.mean(eval_rewards)
+    return np.mean(eval_rewards), highest_eval_score
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
