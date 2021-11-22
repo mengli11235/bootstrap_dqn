@@ -321,8 +321,8 @@ def train(step_number, last_save):
             if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                 logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                 active_head = torch.argmin(logits, dim=-1).item()
-            elif 'SURGE' in info['IMPROVEMENT']:
-                active_head = waves
+            # elif 'SURGE' in info['IMPROVEMENT']:
+            #     active_head = waves
             else:
                 random_state.shuffle(heads)
                 active_head = heads[0]
@@ -335,6 +335,12 @@ def train(step_number, last_save):
                     action = 1
                     eps = 0
                 else:
+                    if 'SURGE' in info['IMPROVEMENT']:
+                        active_head = 0
+                        if waves > 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
+                            active_head = waves - int(epoch_num/(perf['steps'][-1]/waves))
+                            if active_head < 0:
+                                active_head = 0
                     # if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                     #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                     #     active_head = torch.argmin(logits, dim=-1).item()
@@ -385,8 +391,9 @@ def train(step_number, last_save):
             perf['episode_relative_times'].append(time.time()-info['START_TIME'])
             perf['avg_rewards'].append(np.mean(perf['episode_reward'][-100:]))
             last_save = handle_checkpoint(last_save, step_number)
-            if 'SURGE' in info['IMPROVEMENT'] and not epoch_num%info['SURGE_INTERVAL'] and step_number > info['MIN_HISTORY_TO_LEARN']:
-                waves = (waves+1)%info['N_ENSEMBLE']
+
+            if 'SURGE' in info['IMPROVEMENT'] and not step_number%info['SURGE_INTERVAL'] and step_number > info['MIN_HISTORY_TO_LEARN'] and waves < info['N_ENSEMBLE']-1:
+                waves += 1
 
             if not epoch_num%info['PLOT_EVERY_EPISODES'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                 # TODO plot title
@@ -428,6 +435,8 @@ def evaluate(step_number, highest_eval_score):
                 # if 'DISCRIMINATOR' in info['IMPROVEMENT']:
                 #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                 #     action_head = torch.argmax(logits, dim=-1).item()
+                if 'SURGE' in info['IMPROVEMENT']:
+                    active_head = 0
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=active_head, evaluation=True)
                 heads_chosen = [x+y for x,y in zip(heads_chosen, eps)]
             next_state, reward, life_lost, terminal = env.step(action)
@@ -516,7 +525,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "SURGE_INTERVAL":100,
+        "SURGE_INTERVAL":1e5,
         "IMPROVEMENT": ['SURGE'],
     }
 
