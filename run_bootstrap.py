@@ -435,10 +435,11 @@ def evaluate(step_number, highest_eval_score):
                 # if 'DISCRIMINATOR' in info['IMPROVEMENT']:
                 #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                 #     action_head = torch.argmax(logits, dim=-1).item()
-                # if 'SURGE' in info['IMPROVEMENT']:
-                #     active_head = 0
+                if 'SURGE' in info['IMPROVEMENT']:
+                    active_head = 0
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=active_head, evaluation=True)
-                heads_chosen = [x+y for x,y in zip(heads_chosen, eps)]
+                if 'SURGE' not in info['IMPROVEMENT']:
+                    heads_chosen = [x+y for x,y in zip(heads_chosen, eps)]
             next_state, reward, life_lost, terminal = env.step(action)
             # if next_state[-1].tobytes() not in eval_states:
             #     eval_states.append(next_state[-1].tobytes())
