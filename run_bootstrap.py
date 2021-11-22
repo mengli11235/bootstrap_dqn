@@ -174,7 +174,12 @@ class ActionGetter:
                 # else:
                 data = Counter(acts)
                 action = data.most_common(1)[0][0]
-                return eps, action
+                heads_chosen = [0]*info['N_ENSEMBLE']
+                for i,head in enumerate(acts):
+                    if action == head:
+                        heads_chosen[i] += 1
+
+                return heads_chosen, action
 
 def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads, masks):
     states = torch.Tensor(states.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
@@ -390,6 +395,8 @@ def evaluate(step_number, highest_eval_score):
     eval_rewards = []
     evaluate_step_number = 0
     frames_for_gif = []
+    heads_chosen = [0]*info['N_ENSEMBLE']
+
     # only run one
     for i in range(info['NUM_EVAL_EPISODES']):
         state = env.reset()
@@ -402,10 +409,11 @@ def evaluate(step_number, highest_eval_score):
                 action = 1
             else:
                 active_head=None
-                if 'DISCRIMINATOR' in info['IMPROVEMENT']:
-                    logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
-                    action_head = torch.argmax(logits, dim=-1).item()
+                # if 'DISCRIMINATOR' in info['IMPROVEMENT']:
+                #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
+                #     action_head = torch.argmax(logits, dim=-1).item()
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=active_head, evaluation=True)
+                heads_chosen = [x+y for x,y in zip(heads_chosen, eps)]
             next_state, reward, life_lost, terminal = env.step(action)
             # if next_state[-1].tobytes() not in eval_states:
             #     eval_states.append(next_state[-1].tobytes())
@@ -429,7 +437,7 @@ def evaluate(step_number, highest_eval_score):
     # Show the evaluation score in tensorboard
     efile = os.path.join(model_base_filedir, 'eval_rewards.txt')
     with open(efile, 'a') as eval_reward_file:
-        print(step_number, np.mean(eval_rewards), file=eval_reward_file)
+        print(step_number, np.mean(eval_rewards), heads_chosen, file=eval_reward_file)
     return np.mean(eval_rewards), highest_eval_score
 
 if __name__ == '__main__':

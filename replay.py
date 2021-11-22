@@ -148,3 +148,4 @@ class ReplayMemory:
         return self.states, self.actions[self.indices], self.rewards[self.indices], self.new_states, self.terminal_flags[self.indices], self.active_heads[self.indices], self.masks[self.indices]
 
 
+
