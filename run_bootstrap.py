@@ -322,6 +322,7 @@ def train(step_number, last_save):
             start_steps = step_number
             st = time.time()
             episode_reward_sum = 0
+            epoch_frame_episode = 0
             if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                 logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                 active_head = torch.argmin(logits, dim=-1).item()
@@ -342,11 +343,13 @@ def train(step_number, last_save):
                     if 'SURGE' in info['IMPROVEMENT']:
                         active_head = 0
                         if waves > 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
-                            active_head = waves - int(epoch_num/(perf['steps'][-1]/waves))
+                            active_head = waves - int(epoch_frame_episode/(perf['steps'][-1]/waves))
                             if active_head < 0:
                                 active_head = 0
                     elif 'SURGE_OUT' in info['IMPROVEMENT']:
-                        active_head = waves
+                        active_head = 0
+                        if step_number > info['MIN_HISTORY_TO_LEARN']:
+                            active_head = waves
 
                     # if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                     #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
@@ -374,6 +377,7 @@ def train(step_number, last_save):
 
                 step_number += 1
                 epoch_frame += 1
+                epoch_frame_episode += 1
                 episode_reward_sum += reward
                 state = next_state
 
