@@ -399,6 +399,11 @@ def train(step_number, last_save):
                     print("++++++++++++++++++++++++++++++++++++++++++++++++")
                     print('updating target network at %s'%step_number)
                     target_net.load_state_dict(policy_net.state_dict())
+                    if 'NORMAL_PRIOR' in info['IMPROVEMENT']:
+                        prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
+                            n_actions=env.num_actions,
+                            network_output_size=info['NETWORK_INPUT_SIZE'][0],
+                            num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
                     #prior_target_net.load_state_dict(prior_net.state_dict())
 
             et = time.time()
@@ -547,8 +552,8 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "SURGE_INTERVAL":1e4,
-        "IMPROVEMENT": ['SURGE'],
+        "SURGE_INTERVAL":2e5,
+        "IMPROVEMENT": ['NORMAL_PRIOR'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
