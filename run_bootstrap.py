@@ -160,16 +160,20 @@ class ActionGetter:
             return eps, self.random_state.randint(0, self.n_actions)
         else:
             state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
-            vals = policy_net(state, active_head)
-            if active_head is not None:
-                action = torch.argmax(vals, dim=1).item()
-                return eps, action
+            if not evaluation and ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']):
+                vals = policy_net(state, None)
+                acts = [torch.argmax(vals[h],dim=1).item() for h in range(active_head+1)]
+                if len(acts) == 1:
+                    acts = acts[0]
+                return eps, acts
             else:
-                # vote
-                acts = [torch.argmax(vals[h],dim=1).item() for h in range(info['N_ENSEMBLE'])]
-                if not evaluation and 'SURGE' in info['IMPROVEMENT']:
-                    return eps, acts[:active_head]
+                vals = policy_net(state, active_head)
+                if active_head is not None:
+                    action = torch.argmax(vals, dim=1).item()
+                    return eps, action
                 else:
+                    # vote
+                    acts = [torch.argmax(vals[h],dim=1).item() for h in range(info['N_ENSEMBLE'])]
                     data = Counter(acts)
                     action = data.most_common(1)[0][0]
                     heads_chosen = [0]*info['N_ENSEMBLE']
@@ -177,7 +181,7 @@ class ActionGetter:
                         if action == head:
                             heads_chosen[i] += 1
 
-                    return heads_chosen, action
+                        return heads_chosen, action
 
 def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads, masks):
     states = torch.Tensor(states.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
@@ -228,7 +232,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         total_used = torch.sum(masks[:,k])
         if total_used > 0.0:
             next_k = k
-            if 'SURGE' in info['IMPROVEMENT'] and k > 0:
+            if ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']) and k > 0:
                 next_k = k-1
             next_q_vals = next_q_target_vals[next_k].data
             if info['DOUBLE_DQN']:
@@ -341,19 +345,24 @@ def train(step_number, last_save):
                             active_head = waves - int(epoch_num/(perf['steps'][-1]/waves))
                             if active_head < 0:
                                 active_head = 0
+                    elif 'SURGE_OUT' in info['IMPROVEMENT']:
+                        active_head = waves
+
                     # if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                     #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                     #     active_head = torch.argmin(logits, dim=-1).item()
-                    if 'SURGE' not in info['IMPROVEMENT'] or len(action_list) == 0:
+                    if ('SURGE' not in info['IMPROVEMENT'] and 'SURGE_OUT' not in info['IMPROVEMENT']) or len(action_list) == 0:
                         eps,action = action_getter.pt_get_action(step_number, state=state, active_head=active_head)
-                    if 'SURGE' in info['IMPROVEMENT'] and not np.isscalar(action):
-                        if len(action_list) == 0:
+                        if not np.isscalar(action):
                             action_list = action
-                        action = action_list.pop(0)
+                            action = action_list.pop(0)
+
+                    else:
                         if len(ep_eps_list):
                             eps = ep_eps_list[-1]
                         else:
                             eps = info['EPS_INITIAL']
+
                 ep_eps_list.append(eps)
                 next_state, reward, life_lost, terminal = env.step(action)
                 # Store transition in the replay memory
@@ -392,8 +401,10 @@ def train(step_number, last_save):
             perf['avg_rewards'].append(np.mean(perf['episode_reward'][-100:]))
             last_save = handle_checkpoint(last_save, step_number)
 
-            if 'SURGE' in info['IMPROVEMENT'] and not step_number%info['SURGE_INTERVAL'] and step_number > info['MIN_HISTORY_TO_LEARN'] and waves < info['N_ENSEMBLE']-1:
+            if 'SURGE' in info['IMPROVEMENT'] and step_number%info['SURGE_INTERVAL'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN'] and waves < info['N_ENSEMBLE']-1:
                 waves += 1
+            elif 'SURGE_OUT' in info['IMPROVEMENT'] and step_number%info['SURGE_INTERVAL'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
+                waves = (waves+1)%info['N_ENSEMBLE']
 
             if not epoch_num%info['PLOT_EVERY_EPISODES'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                 # TODO plot title
@@ -435,10 +446,10 @@ def evaluate(step_number, highest_eval_score):
                 # if 'DISCRIMINATOR' in info['IMPROVEMENT']:
                 #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                 #     action_head = torch.argmax(logits, dim=-1).item()
-                if 'SURGE' in info['IMPROVEMENT']:
+                if 'SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']:
                     active_head = 0
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=active_head, evaluation=True)
-                if 'SURGE' not in info['IMPROVEMENT']:
+                if 'SURGE' not in info['IMPROVEMENT'] and 'SURGE_OUT' not in info['IMPROVEMENT']:
                     heads_chosen = [x+y for x,y in zip(heads_chosen, eps)]
             next_state, reward, life_lost, terminal = env.step(action)
             # if next_state[-1].tobytes() not in eval_states:
@@ -526,8 +537,8 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "SURGE_INTERVAL":1e5,
-        "IMPROVEMENT": ['SURGE'],
+        "SURGE_INTERVAL":1e4,
+        "IMPROVEMENT": ['SURGE_OUT'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
