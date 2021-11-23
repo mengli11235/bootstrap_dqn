@@ -212,13 +212,12 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         discriminator_loss = ce_loss(logits, active_heads)
 
 
-    if 'PRETRAIN' in info['IMPROVEMENT']:
-        if 'PRIOR' in info['IMPROVEMENT']:
-            prior_pi = prior_net(states, None)
-            prior_next_pi = prior_net(next_states, None)
-        else:
-            prior_pi = prior_net.forward(states, return_all_heads=True)
-            prior_next_pi  = prior_net.forward(next_states, return_all_heads=True)
+    if 'PRIOR' in info['IMPROVEMENT']:
+        prior_pi = prior_net(states, None)
+        prior_next_pi = prior_net(next_states, None)
+    elif 'PRETRAIN' in info['IMPROVEMENT']:
+        prior_pi = prior_net.forward(states, return_all_heads=True)
+        prior_next_pi  = prior_net.forward(next_states, return_all_heads=True)
         #print(prior_next_pi[0], next_q_target_vals[0])
 #         q_policy_vals += info['PRIOR_SCALE'] * prior_pi
 #         next_q_target_vals += info['PRIOR_SCALE'] * prior_next_pi
@@ -245,7 +244,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             # if k==0:
             #     print(q_policy_vals[k])
 
-            if 'PRETRAIN' in info['IMPROVEMENT']:
+            if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
                 if 'PRETRAIN' in info['IMPROVEMENT']:
                     prior_preds = prior_pi[k].gather(1, actions[:,None]).squeeze(1)
                     next_prior_preds = prior_next_pi[k].gather(1, next_actions).squeeze(1)
@@ -399,7 +398,7 @@ def train(step_number, last_save):
                     print("++++++++++++++++++++++++++++++++++++++++++++++++")
                     print('updating target network at %s'%step_number)
                     target_net.load_state_dict(policy_net.state_dict())
-                    if 'NORMAL_PRIOR' in info['IMPROVEMENT']:
+                    if 'PRIOR' in info['IMPROVEMENT']:
                         prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
                             n_actions=env.num_actions,
                             network_output_size=info['NETWORK_INPUT_SIZE'][0],
@@ -553,7 +552,7 @@ if __name__ == '__main__':
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "SURGE_INTERVAL":2e5,
-        "IMPROVEMENT": ['NORMAL_PRIOR'],
+        "IMPROVEMENT": ['PRIOR'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
