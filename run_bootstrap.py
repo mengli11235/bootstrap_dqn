@@ -315,6 +315,8 @@ def train(step_number, last_save):
         ####### Training #######
         ########################
         epoch_frame = 0
+        epoch_frame_episode_last = 0
+
         while epoch_frame < info['EVAL_FREQUENCY']:
             terminal = False
             life_lost = True
@@ -323,7 +325,6 @@ def train(step_number, last_save):
             st = time.time()
             episode_reward_sum = 0
             epoch_frame_episode = 0
-            epoch_frame_episode_last = 0
             if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                 logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                 active_head = torch.argmin(logits, dim=-1).item()
