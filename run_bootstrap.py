@@ -381,6 +381,13 @@ def train(step_number, last_save):
                     _states, _actions, _rewards, _next_states, _terminal_flags, _active_heads, _masks = replay_memory.get_minibatch(info['BATCH_SIZE'])
                     ptloss = ptlearn(_states, _actions, _rewards, _next_states, _terminal_flags, _active_heads, _masks)
                     ptloss_list.append(ptloss)
+
+
+                if 'SURGE' in info['IMPROVEMENT'] and step_number%info['SURGE_INTERVAL'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN'] and waves < info['N_ENSEMBLE']-1:
+                    waves += 1
+                elif 'SURGE_OUT' in info['IMPROVEMENT'] and step_number%info['SURGE_INTERVAL'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
+                    waves = (waves+1)%info['N_ENSEMBLE']
+
                 if step_number % info['TARGET_UPDATE'] == 0 and step_number >  info['MIN_HISTORY_TO_LEARN']:
                     print("++++++++++++++++++++++++++++++++++++++++++++++++")
                     print('updating target network at %s'%step_number)
@@ -400,11 +407,6 @@ def train(step_number, last_save):
             perf['episode_relative_times'].append(time.time()-info['START_TIME'])
             perf['avg_rewards'].append(np.mean(perf['episode_reward'][-100:]))
             last_save = handle_checkpoint(last_save, step_number)
-
-            if 'SURGE' in info['IMPROVEMENT'] and step_number%info['SURGE_INTERVAL'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN'] and waves < info['N_ENSEMBLE']-1:
-                waves += 1
-            elif 'SURGE_OUT' in info['IMPROVEMENT'] and step_number%info['SURGE_INTERVAL'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
-                waves = (waves+1)%info['N_ENSEMBLE']
 
             if not epoch_num%info['PLOT_EVERY_EPISODES'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                 # TODO plot title
