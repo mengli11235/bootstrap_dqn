@@ -540,7 +540,7 @@ if __name__ == '__main__':
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "SURGE_INTERVAL":1e4,
-        "IMPROVEMENT": ['SURGE'],
+        "IMPROVEMENT": ['SURGE_OUT'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
