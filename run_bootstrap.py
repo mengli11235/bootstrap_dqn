@@ -346,7 +346,7 @@ def train(step_number, last_save):
                     if 'SURGE' in info['IMPROVEMENT']:
                         active_head = 0
                         if waves > 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
-                            active_head = waves - int(epoch_frame_episode/(epoch_frame_episode_last/waves))
+                            active_head = waves - int(epoch_frame_episode/(epoch_frame_episode_last/(waves+1)))
                             if active_head < 0:
                                 active_head = 0
                     elif 'SURGE_OUT' in info['IMPROVEMENT']:
@@ -548,7 +548,7 @@ if __name__ == '__main__':
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "SURGE_INTERVAL":1e4,
-        "IMPROVEMENT": ['SURGE_OUT'],
+        "IMPROVEMENT": ['SURGE'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
