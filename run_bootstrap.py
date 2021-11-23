@@ -245,12 +245,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             #     print(q_policy_vals[k])
 
             if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
-                if 'PRETRAIN' in info['IMPROVEMENT']:
-                    prior_preds = prior_pi[k].gather(1, actions[:,None]).squeeze(1)
-                    next_prior_preds = prior_next_pi[k].gather(1, next_actions).squeeze(1)
-                else:
-                    prior_preds = prior_pi[k]
-                    next_prior_preds = prior_next_pi[k]
+                prior_preds = prior_pi[k].gather(1, actions[:,None]).squeeze(1)
+                next_prior_preds = prior_next_pi[k].gather(1, next_actions).squeeze(1)
+                
                 preds += info['PRIOR_SCALE'] * prior_preds
                 if not info['DOUBLE_DQN']:
                     next_actions = torch.argmax(next_q_vals, dim=1)
