@@ -257,7 +257,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                     next_actions = torch.argmax(next_q_vals, dim=1)
                 next_qs += info['PRIOR_SCALE'] * next_prior_preds
 
-            targets = rewards + info['GAMMA'] * next_qs * (1-terminal_flags)
+            targets = info['GAMMA'] * next_qs * (1-terminal_flags)
+            if not ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']) or k == 0:
+                targets += rewards
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
             # if 'soft' in info['IMPROVEMENT']:
             #     # soft update
