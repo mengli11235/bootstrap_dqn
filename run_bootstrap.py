@@ -311,14 +311,13 @@ def train(step_number, last_save):
     epoch_num = len(perf['steps'])
     highest_eval_score = -np.inf
     waves = 0
+    epoch_frame_episode_last = 0
 
     while step_number < info['MAX_STEPS']:
         ########################
         ####### Training #######
         ########################
         epoch_frame = 0
-        epoch_frame_episode_last = 0
-
         while epoch_frame < info['EVAL_FREQUENCY']:
             terminal = False
             life_lost = True
