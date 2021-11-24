@@ -243,7 +243,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
                 #print(prior_next_pi.size())
                 next_q_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
-                next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
+                #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
 
             if info['DOUBLE_DQN']:
                 next_actions = next_policy_vals.max(1, True)[1]
@@ -516,7 +516,7 @@ if __name__ == '__main__':
 
     info = {
         #"GAME":'roms/breakout.bin', # gym prefix
-        "GAME":'roms/freeway.bin', # gym prefix
+        "GAME":'roms/pong.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
