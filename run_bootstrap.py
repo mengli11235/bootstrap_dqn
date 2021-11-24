@@ -525,7 +525,7 @@ if __name__ == '__main__':
         "NUM_EVAL_EPISODES":1, # num examples to average in eval
         "BUFFER_SIZE":int(1e6), # Buffer size for experience replay
         "CHECKPOINT_EVERY_STEPS":5000000, # how often to write pkl of model and npz of data buffer
-        "EVAL_FREQUENCY":1, # how often to run evaluation episodes
+        "EVAL_FREQUENCY":250000, # how often to run evaluation episodes
         "ADAM_LEARNING_RATE":6.25e-5,
         "RMS_LEARNING_RATE": 0.00025, # according to paper = 0.00025
         "RMS_DECAY":0.95,
