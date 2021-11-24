@@ -216,7 +216,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         # prior_next_pi = prior_net(next_states, None).detach()
         # prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], actions.size(-1)).to(info['DEVICE'])
         # nn.init.normal_(prior_pi, 0, 0.02)
-        prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], actions.size(-1)).to(info['DEVICE'])
+        prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], q_policy_vals[0].size(-1)).to(info['DEVICE'])
         nn.init.normal_(prior_next_pi, 0, 0.02)
 
     elif 'PRETRAIN' in info['IMPROVEMENT']:
@@ -241,6 +241,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             next_policy_vals = next_q_policy_vals[next_k].data
             if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
                 #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
+                #print(prior_next_pi.size())
                 next_q_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
             if info['DOUBLE_DQN']:
                 next_actions = next_policy_vals.max(1, True)[1]
