@@ -214,8 +214,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     if 'PRIOR' in info['IMPROVEMENT']:
         # prior_pi = prior_net(states, None).detach()
         # prior_next_pi = prior_net(next_states, None).detach()
-        prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], actions.size(-1)).to(info['DEVICE'])
-        nn.init.normal_(prior_pi, 0, 0.02)
+        # prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], actions.size(-1)).to(info['DEVICE'])
+        # nn.init.normal_(prior_pi, 0, 0.02)
         prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], actions.size(-1)).to(info['DEVICE'])
         nn.init.normal_(prior_next_pi, 0, 0.02)
 
@@ -238,8 +238,12 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             if ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']) and k > 0:
                 next_k = k-1
             next_q_vals = next_q_target_vals[next_k].data
+            next_policy_vals = next_q_policy_vals[next_k].data
+            if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
+                #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
+                next_q_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
             if info['DOUBLE_DQN']:
-                next_actions = next_q_policy_vals[next_k].data.max(1, True)[1]
+                next_actions = next_policy_vals.max(1, True)[1]
                 next_qs = next_q_vals.gather(1, next_actions).squeeze(1)
             else:
                 next_qs = next_q_vals.max(1)[0] # max returns a pair
@@ -248,14 +252,14 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             # if k==0:
             #     print(q_policy_vals[k])
 
-            if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
-                if not info['DOUBLE_DQN']:
-                    next_actions = torch.argmax(next_q_vals, dim=1)
-                prior_preds = prior_pi[k].gather(1, actions[:,None]).squeeze(1)
-                next_prior_preds = prior_next_pi[k].gather(1, next_actions).squeeze(1)
+            # if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
+            #     if not info['DOUBLE_DQN']:
+            #         next_actions = torch.argmax(next_q_vals, dim=1)
+            #     prior_preds = prior_pi[k].gather(1, actions[:,None]).squeeze(1)
+            #     next_prior_preds = prior_next_pi[k].gather(1, next_actions).squeeze(1)
                 
-                preds += info['PRIOR_SCALE'] * prior_preds
-                next_qs += info['PRIOR_SCALE'] * next_prior_preds
+            #     preds += info['PRIOR_SCALE'] * prior_preds
+            #     next_qs += info['PRIOR_SCALE'] * next_prior_preds
 
             targets = info['GAMMA'] * next_qs * (1-terminal_flags)
             if not ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']) or k == 0:
