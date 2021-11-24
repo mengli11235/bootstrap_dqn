@@ -180,8 +180,7 @@ class ActionGetter:
                     for i,head in enumerate(acts):
                         if action == head:
                             heads_chosen[i] += 1
-
-                        return heads_chosen, action
+                    return heads_chosen, action
 
 def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads, masks):
     states = torch.Tensor(states.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
@@ -503,7 +502,7 @@ if __name__ == '__main__':
 
     info = {
         #"GAME":'roms/breakout.bin', # gym prefix
-        "GAME":'roms/breakout.bin', # gym prefix
+        "GAME":'roms/freeeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
@@ -526,7 +525,7 @@ if __name__ == '__main__':
         "NUM_EVAL_EPISODES":1, # num examples to average in eval
         "BUFFER_SIZE":int(1e6), # Buffer size for experience replay
         "CHECKPOINT_EVERY_STEPS":5000000, # how often to write pkl of model and npz of data buffer
-        "EVAL_FREQUENCY":250000, # how often to run evaluation episodes
+        "EVAL_FREQUENCY":1, # how often to run evaluation episodes
         "ADAM_LEARNING_RATE":6.25e-5,
         "RMS_LEARNING_RATE": 0.00025, # according to paper = 0.00025
         "RMS_DECAY":0.95,
