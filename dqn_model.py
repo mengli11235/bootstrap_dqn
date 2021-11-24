@@ -158,3 +158,7 @@ class NetWithPrior(nn.Module):
                     return [self.prior_scale * p for p in prior_heads]
         else:
             raise ValueError("Only works with a net_list model")
+
+# w = torch.empty(3, 5)
+# nn.init.normal_(w, 0,0.2)
+# print(w.size(-1))

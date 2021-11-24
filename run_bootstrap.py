@@ -212,8 +212,13 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
 
 
     if 'PRIOR' in info['IMPROVEMENT']:
-        prior_pi = prior_net(states, None)
-        prior_next_pi = prior_net(next_states, None)
+        # prior_pi = prior_net(states, None).detach()
+        # prior_next_pi = prior_net(next_states, None).detach()
+        prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], actions.size(-1)).to(info['DEVICE'])
+        nn.init.normal_(prior_pi, 0, 0.2)
+        prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], actions.size(-1)).to(info['DEVICE'])
+        nn.init.normal_(prior_next_pi, 0, 0.2)
+
     elif 'PRETRAIN' in info['IMPROVEMENT']:
         prior_pi = prior_net.forward(states, return_all_heads=True)
         prior_next_pi  = prior_net.forward(next_states, return_all_heads=True)
@@ -299,11 +304,6 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         discriminator_loss.backward()
         nn.utils.clip_grad_norm_(discriminator.parameters(), info['CLIP_GRAD'])
         opt_discriminator.step()
-    if 'PRIOR' in info['IMPROVEMENT']:
-        prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
-            n_actions=env.num_actions,
-            network_output_size=info['NETWORK_INPUT_SIZE'][0],
-            num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
     return np.mean(losses)#+discriminator_loss.detach().item()
 
 def train(step_number, last_save):
@@ -400,6 +400,12 @@ def train(step_number, last_save):
                     print('updating target network at %s'%step_number)
                     target_net.load_state_dict(policy_net.state_dict())
                     #prior_target_net.load_state_dict(prior_net.state_dict())
+
+                    # if 'PRIOR' in info['IMPROVEMENT']:
+                    #     prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
+                    #         n_actions=env.num_actions,
+                    #         network_output_size=info['NETWORK_INPUT_SIZE'][0],
+                    #         num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
 
             et = time.time()
             ep_time = et-st
