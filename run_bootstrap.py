@@ -215,9 +215,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         # prior_pi = prior_net(states, None).detach()
         # prior_next_pi = prior_net(next_states, None).detach()
         prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], actions.size(-1)).to(info['DEVICE'])
-        nn.init.normal_(prior_pi, 0, 0.2)
+        nn.init.normal_(prior_pi, 0, 0.02)
         prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], actions.size(-1)).to(info['DEVICE'])
-        nn.init.normal_(prior_next_pi, 0, 0.2)
+        nn.init.normal_(prior_next_pi, 0, 0.02)
 
     elif 'PRETRAIN' in info['IMPROVEMENT']:
         prior_pi = prior_net.forward(states, return_all_heads=True)
@@ -515,7 +515,7 @@ if __name__ == '__main__':
         "DUELING":True, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
-        "PRIOR_SCALE":0.1, # what to scale prior by
+        "PRIOR_SCALE":1, # what to scale prior by
         "N_ENSEMBLE":9, # number of bootstrap heads to use. when 1, this is a normal dqn
         "LEARN_EVERY_STEPS":4, # updates every 4 steps in osband
         "BERNOULLI_PROBABILITY": 0.9, # Probability of experience to go to each head - if 1, every experience goes to every head
