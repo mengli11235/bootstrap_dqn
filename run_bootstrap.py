@@ -217,7 +217,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         # prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'],  q_policy_vals[0].size(-1)).to(info['DEVICE'])
         # nn.init.normal_(prior_pi, 0, 0.02)
         prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], q_policy_vals[0].size(-1)).to(info['DEVICE'])
-        nn.init.normal_(prior_next_pi, 0, 0.2)
+        nn.init.normal_(prior_next_pi, 0, 0.02)
 
     elif 'PRETRAIN' in info['IMPROVEMENT']:
         prior_pi = prior_net.forward(states, return_all_heads=True)
@@ -243,6 +243,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
                 #print(prior_next_pi.size())
                 next_q_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
+                next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
+
             if info['DOUBLE_DQN']:
                 next_actions = next_policy_vals.max(1, True)[1]
                 next_qs = next_q_vals.gather(1, next_actions).squeeze(1)
@@ -418,6 +420,7 @@ def train(step_number, last_save):
 
             perf['steps'].append(step_number)
             perf['episode_step'].append(step_number-start_steps)
+            #print(step_number,active_head)
             perf['episode_head'].append(active_head)
             perf['eps_list'].append(np.mean(ep_eps_list))
             perf['episode_loss'].append(np.mean(ptloss_list))
@@ -536,7 +539,7 @@ if __name__ == '__main__':
         "NUM_EVAL_EPISODES":1, # num examples to average in eval
         "BUFFER_SIZE":int(1e6), # Buffer size for experience replay
         "CHECKPOINT_EVERY_STEPS":5000000, # how often to write pkl of model and npz of data buffer
-        "EVAL_FREQUENCY":5000, # how often to run evaluation episodes
+        "EVAL_FREQUENCY":50000, # how often to run evaluation episodes
         "ADAM_LEARNING_RATE":6.25e-5,
         "RMS_LEARNING_RATE": 0.00025, # according to paper = 0.00025
         "RMS_DECAY":0.95,
