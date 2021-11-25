@@ -230,6 +230,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         prior_q_policy_vals = policy_net.return_prior(states, None)
         prior_next_q_target_vals = target_net.return_prior(next_states, None)
         prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
+    random_state.shuffle(heads)
+
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
@@ -237,13 +239,15 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             next_k = k
             if ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']) and k > 0:
                 next_k = k-1
+            elif 'ROTATION' in info['IMPROVEMENT']:
+                next_k = heads[k]
             next_q_vals = next_q_target_vals[next_k].data
             next_policy_vals = next_q_policy_vals[next_k].data
             if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
                 #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
                 #print(prior_next_pi.size())
-                next_q_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
-                next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
+                next_q_vals += info['PRIOR_SCALE'] * prior_next_pi[next_k]
+                #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[next_k]
 
             if info['DOUBLE_DQN']:
                 next_actions = next_policy_vals.max(1, True)[1]
@@ -516,7 +520,7 @@ if __name__ == '__main__':
 
     info = {
         #"GAME":'roms/breakout.bin', # gym prefix
-        "GAME":'roms/pong.bin', # gym prefix
+        "GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
@@ -562,7 +566,7 @@ if __name__ == '__main__':
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "SURGE_INTERVAL":2e5,
-        "IMPROVEMENT": ['PRIOR'],
+        "IMPROVEMENT": ['PRIOR', 'ROTATION'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
