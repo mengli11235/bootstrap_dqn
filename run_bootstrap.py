@@ -230,7 +230,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         prior_q_policy_vals = policy_net.return_prior(states, None)
         prior_next_q_target_vals = target_net.return_prior(next_states, None)
         prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
-    random_state.shuffle(heads)
+    if 'ROTATION' in info['IMPROVEMENT']:
+        random_state.shuffle(heads)
 
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
@@ -247,7 +248,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
                 #print(prior_next_pi.size())
                 next_q_vals += info['PRIOR_SCALE'] * prior_next_pi[next_k]
-                #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[next_k]
+                next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[next_k]
 
             if info['DOUBLE_DQN']:
                 next_actions = next_policy_vals.max(1, True)[1]
@@ -321,6 +322,9 @@ def train(step_number, last_save):
     """Contains the training and evaluation loops"""
     epoch_num = len(perf['steps'])
     highest_eval_score = -np.inf
+    highest_train_score = -np.inf
+    highest_train_score_trajec = []
+    highest_train_score_trajec_action = []
     waves = 0
     epoch_frame_episode_last = 0
 
@@ -349,6 +353,8 @@ def train(step_number, last_save):
             ep_eps_list = []
             ptloss_list = []
             action_list = []
+            current_trajec = []
+            current_trajec_action = []
             while not terminal:
                 if life_lost:
                     action = 1
@@ -368,21 +374,31 @@ def train(step_number, last_save):
                     # if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                     #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                     #     active_head = torch.argmin(logits, dim=-1).item()
-                    if ('SURGE' not in info['IMPROVEMENT'] and 'SURGE_OUT' not in info['IMPROVEMENT']) or len(action_list) == 0:
+                    if len(ep_eps_list):
+                        eps = ep_eps_list[-1]
+                    else:
+                        eps = info['EPS_INITIAL']
+
+                    if 'TRAJEC' in info['IMPROVEMENT'] and state.tobytes() in highest_train_score_trajec:
+                        action = highest_train_score_trajec_action[highest_train_score_trajec.index(state.tobytes())]
+                        
+                    elif ('SURGE' not in info['IMPROVEMENT'] and 'SURGE_OUT' not in info['IMPROVEMENT']) or len(action_list) == 0:
                         eps,action = action_getter.pt_get_action(step_number, state=state, active_head=active_head)
                         if not np.isscalar(action):
                             action_list = action
                             action = action_list.pop(0)
 
                     else:
-                        if len(ep_eps_list):
-                            eps = ep_eps_list[-1]
-                        else:
-                            eps = info['EPS_INITIAL']
+                        action = action_list.pop(0)
+
 
                 ep_eps_list.append(eps)
                 next_state, reward, life_lost, terminal = env.step(action)
                 # Store transition in the replay memory
+                if 'TRAJEC' in info['IMPROVEMENT']:
+                    current_trajec.append(state.tobytes())
+                    current_trajec_action.append(action)
+
                 replay_memory.add_experience(action=action,
                                                 frame=next_state[-1],
                                                 reward=np.sign(reward), # TODO -maybe there should be +1 here
@@ -421,6 +437,10 @@ def train(step_number, last_save):
             et = time.time()
             ep_time = et-st
             epoch_frame_episode_last = epoch_frame_episode
+            if 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > highest_train_score:
+                highest_train_score_trajec = current_trajec
+                highest_train_score_trajec_action = current_trajec_action
+                highest_train_score = episode_reward_sum
 
             perf['steps'].append(step_number)
             perf['episode_step'].append(step_number-start_steps)
@@ -566,7 +586,7 @@ if __name__ == '__main__':
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "SURGE_INTERVAL":2e5,
-        "IMPROVEMENT": ['PRIOR', 'ROTATION'],
+        "IMPROVEMENT": ['PRIOR', 'TRAJEC'],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
