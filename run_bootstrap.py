@@ -128,7 +128,7 @@ class ActionGetter:
             self.slope_2 = -(self.eps_final - self.eps_final_frame)/(self.max_steps - self.eps_annealing_frames - self.replay_memory_start_size)
             self.intercept_2 = self.eps_final_frame - self.slope_2*self.max_steps
 
-    def pt_get_action(self, step_number, state, active_head=None, evaluation=False):
+    def pt_get_action(self, step_number, state, active_head=None, evaluation=False, trajec_action=None):
         """
         Args:
             step_number: int number of the current step
@@ -158,6 +158,8 @@ class ActionGetter:
             eps = 0
         if self.random_state.rand() < eps:
             return eps, self.random_state.randint(0, self.n_actions)
+        elif trajec_action != None:
+            return eps, trajec_action
         else:
             state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
             if not evaluation and ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']):
@@ -356,6 +358,7 @@ def train(step_number, last_save):
             current_trajec = []
             current_trajec_action = []
             while not terminal:
+                trajec_action = None
                 if life_lost:
                     action = 1
                     eps = 0
@@ -374,22 +377,22 @@ def train(step_number, last_save):
                     # if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
                     #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
                     #     active_head = torch.argmin(logits, dim=-1).item()
-                    if len(ep_eps_list):
-                        eps = ep_eps_list[-1]
-                    else:
-                        eps = info['EPS_INITIAL']
 
                     if 'TRAJEC' in info['IMPROVEMENT'] and state.tobytes() in highest_train_score_trajec:
-                        action = highest_train_score_trajec_action[highest_train_score_trajec.index(state.tobytes())]
+                        trajec_action = highest_train_score_trajec_action[highest_train_score_trajec.index(state.tobytes())]
                         
-                    elif ('SURGE' not in info['IMPROVEMENT'] and 'SURGE_OUT' not in info['IMPROVEMENT']) or len(action_list) == 0:
-                        eps,action = action_getter.pt_get_action(step_number, state=state, active_head=active_head)
+                    if ('SURGE' not in info['IMPROVEMENT'] and 'SURGE_OUT' not in info['IMPROVEMENT']) or len(action_list) == 0:
+                        eps,action = action_getter.pt_get_action(step_number, state=state, active_head=active_head, trajec_action=trajec_action)
                         if not np.isscalar(action):
                             action_list = action
                             action = action_list.pop(0)
 
                     else:
                         action = action_list.pop(0)
+                        if len(ep_eps_list):
+                            eps = ep_eps_list[-1]
+                        else:
+                            eps = info['EPS_INITIAL']
 
 
                 ep_eps_list.append(eps)
