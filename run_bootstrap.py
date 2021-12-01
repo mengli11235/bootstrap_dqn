@@ -239,11 +239,13 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
         if total_used > 0.0:
-            next_k = k
             if ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']) and k > 0:
                 next_k = k-1
             elif 'ROTATION' in info['IMPROVEMENT']:
                 next_k = heads[k]
+            else:
+                next_k = k
+
             next_q_vals = next_q_target_vals[next_k].data
             next_policy_vals = next_q_policy_vals[next_k].data
             if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
@@ -589,7 +591,7 @@ if __name__ == '__main__':
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "SURGE_INTERVAL":2e5,
-        "IMPROVEMENT": ['', ''],
+        "IMPROVEMENT": ['SURGE', ''],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
