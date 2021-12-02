@@ -447,6 +447,10 @@ def train(step_number, last_save):
                 highest_train_score_trajec_action = current_trajec_action
                 highest_train_score = episode_reward_sum
 
+            elif 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > 0.8*highest_train_score:
+                highest_train_score_trajec.extend(current_trajec)
+                highest_train_score_trajec_action.extend(current_trajec_action)
+
             perf['steps'].append(step_number)
             perf['episode_step'].append(step_number-start_steps)
             #print(step_number,active_head)
@@ -591,7 +595,7 @@ if __name__ == '__main__':
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "SURGE_INTERVAL":2e5,
-        "IMPROVEMENT": ['SURGE', ''],
+        "IMPROVEMENT": ['TRAJEC', ''],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
