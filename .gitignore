@@ -26,3 +26,4 @@ pretrained_models/
 gpu_out/
 outtest1.log
 errortest1.log
+*.gz

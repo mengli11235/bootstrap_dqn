@@ -76,9 +76,7 @@ def handle_checkpoint(last_save, cnt):
                  'target_net_state_dict':target_net.state_dict(),
                  'perf':perf,
                 }
-        filename = os.path.abspath(model_base_filepath + "_%010dq.pkl"%cnt)
-        if torch.cuda.is_available():
-            filename = os.path.abspath("/scratch/users/limeng/buffer" + "_%010dq.pkl"%cnt)
+        filename = os.path.abspath(model_base_filepath +"_%010dq.pkl"%cnt)
         save_checkpoint(state, filename)
         # npz will be added
         buff_filename = os.path.abspath(model_base_filepath + "_%010dq_train_buffer"%cnt)
