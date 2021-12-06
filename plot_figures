@@ -1,0 +1,33 @@
+import torch
+import numpy as np
+from run_bootstrap import rolling_average
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+if __name__ == '__main__':
+    max_index = 500
+    
+    model_dict1 = torch.load('limeng/buffer_0005001283q.pkl', map_location=torch.device('cpu'))
+    model_dict2 = torch.load('limeng/buffer_0005000989q.pkl', map_location=torch.device('cpu'))
+
+    p1 = model_dict1['perf']
+    p2 = model_dict2['perf']
+    print(len(p1['steps']), len(p2['steps']))
+
+    plot_dict = {'algo1':{'index':p1['eval_steps'],'val':p1['eval_rewards']}, 'algo2':{'index':p2['eval_steps'],'val':p2['eval_rewards']}}
+
+    name='results.png'
+    rolling_length=4
+    plot_title='Results on Bootstrap DQN'
+
+    f,ax=plt.subplots(1,1,figsize=(6,6))
+    for n in plot_dict.keys():
+        print('plotting', n)
+        ax.plot(rolling_average(plot_dict[n]['index'][:max_index]), rolling_average(plot_dict[n]['val'][:max_index]), lw=1)
+        ax.scatter(rolling_average(plot_dict[n]['index'][:max_index]), rolling_average(plot_dict[n]['val'][:max_index]), label=n, s=3)
+    ax.legend()
+    if plot_title != '':
+        plt.title(plot_title)
+    plt.savefig(name)
+    plt.close()
