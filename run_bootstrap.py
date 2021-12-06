@@ -80,8 +80,6 @@ def handle_checkpoint(last_save, cnt):
         save_checkpoint(state, filename)
         # npz will be added
         buff_filename = os.path.abspath(model_base_filepath + "_%010dq_train_buffer"%cnt)
-        if torch.cuda.is_available():
-                    buff_filename = os.path.abspath("/scratch/users/limeng/buffer" + "_%010dq_train_buffer"%cnt)
         #replay_memory.save_buffer(buff_filename)
         print("finished checkpoint", time.time()-st)
         return last_save
