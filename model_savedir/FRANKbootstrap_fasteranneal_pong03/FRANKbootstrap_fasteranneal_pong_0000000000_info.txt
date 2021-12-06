@@ -1,4 +1,4 @@
-GAME=roms/freeway.bin
+GAME=roms/breakout.bin
 DEVICE=cuda
 NAME=FRANKbootstrap_fasteranneal_pong
 PRETRAIN_MODEL_PATH=diayn_net_breakout
@@ -36,7 +36,7 @@ CLIP_GRAD=5
 SEED=101
 RANDOM_HEAD=-1
 NETWORK_INPUT_SIZE=(84, 84)
-START_TIME=1638522103.566648
+START_TIME=1638795374.4451957
 MAX_STEPS=50000000
 MAX_EPISODE_STEPS=27000
 FRAME_SKIP=4
@@ -46,4 +46,4 @@ SURGE_INTERVAL=200000.0
 IMPROVEMENT=['', '']
 FAKE_ACTS=[-1, -1, -1, -1, -1, -1, -1, -1, -1]
 args=Namespace(buffer_loadpath='', cuda=False, model_loadpath='')
-load_time=Fri Dec  3 00:00:00 2021
+load_time=Mon Dec  6 00:00:00 2021
