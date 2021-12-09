@@ -486,7 +486,10 @@ def evaluate(step_number, highest_eval_score):
 
     # only run one
     for i in range(info['NUM_EVAL_EPISODES']):
-        state = env.reset()
+        eval_env = Environment(rom_file=info['GAME'], frame_skip=info['FRAME_SKIP'],
+                    num_frames=info['HISTORY_SIZE'], no_op_start=info['MAX_NO_OP_FRAMES'], rand_seed=np.random.randint(255),
+                    dead_as_end=info['DEAD_AS_END'], max_episode_steps=info['MAX_EPISODE_STEPS'])
+        state = eval_env.reset()
         episode_reward_sum = 0
         terminal = False
         life_lost = True
@@ -504,14 +507,14 @@ def evaluate(step_number, highest_eval_score):
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=active_head, evaluation=True)
                 if 'SURGE' not in info['IMPROVEMENT'] and 'SURGE_OUT' not in info['IMPROVEMENT']:
                     heads_chosen = [x+y for x,y in zip(heads_chosen, eps)]
-            next_state, reward, life_lost, terminal = env.step(action)
+            next_state, reward, life_lost, terminal = eval_env.step(action)
             # if next_state[-1].tobytes() not in eval_states:
             #     eval_states.append(next_state[-1].tobytes())
             evaluate_step_number += 1
             episode_steps +=1
             episode_reward_sum += reward
             # only save first episode
-            frames_for_gif.append(env.ale.getScreenRGB())
+            frames_for_gif.append(eval_env.ale.getScreenRGB())
             if not episode_steps%100:
                 print('eval', episode_steps, episode_reward_sum)
             state = next_state
@@ -545,7 +548,7 @@ if __name__ == '__main__':
 
     info = {
         #"GAME":'roms/breakout.bin', # gym prefix
-        "GAME":'roms/alien.bin', # gym prefix
+        "GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
@@ -565,7 +568,7 @@ if __name__ == '__main__':
         "EPS_ANNEALING_FRAMES":int(1e6), # this may have been 1e6 in osband
         #"EPS_ANNEALING_FRAMES":0, # if it annealing is zero, then it will only use the bootstrap after the first MIN_EXAMPLES_TO_LEARN steps which are random
         "EPS_FINAL_FRAME":0.01,
-        "NUM_EVAL_EPISODES":1, # num examples to average in eval
+        "NUM_EVAL_EPISODES":5, # num examples to average in eval
         "BUFFER_SIZE":int(1e6), # Buffer size for experience replay
         "CHECKPOINT_EVERY_STEPS":5000000, # how often to write pkl of model and npz of data buffer
         "EVAL_FREQUENCY":5000, # how often to run evaluation episodes
@@ -581,7 +584,7 @@ if __name__ == '__main__':
         "GAMMA":.99, # Gamma weight in Q update
         "PLOT_EVERY_EPISODES": 50,
         "CLIP_GRAD":5, # Gradient clipping setting
-        "SEED":101,
+        "SEED":111,
         "RANDOM_HEAD":-1, # just used in plotting as demarcation
         "NETWORK_INPUT_SIZE":(84,84),
         "START_TIME":time.time(),
