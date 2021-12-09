@@ -548,7 +548,7 @@ if __name__ == '__main__':
 
     info = {
         #"GAME":'roms/breakout.bin', # gym prefix
-        "GAME":'roms/pong.bin', # gym prefix
+        "GAME":'roms/kung_fu_master.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
@@ -594,7 +594,7 @@ if __name__ == '__main__':
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "SURGE_INTERVAL":2e5,
-        "IMPROVEMENT": ['', ''],
+        "IMPROVEMENT": ['PRIOR', ''],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
