@@ -446,9 +446,10 @@ def train(step_number, last_save):
                 highest_train_score_trajec_action = current_trajec_action[:-max_trajec]
                 highest_train_score = episode_reward_sum
 
-            # elif 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > 0.8*highest_train_score:
-            #     highest_train_score_trajec.extend(current_trajec)
-            #     highest_train_score_trajec_action.extend(current_trajec_action)
+            elif 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > 0.8*highest_train_score:
+                max_trajec = int(len(current_trajec)/10)
+                highest_train_score_trajec.extend(current_trajec[:-max_trajec])
+                highest_train_score_trajec_action.extend(current_trajec_action[:-max_trajec])
 
             perf['steps'].append(step_number)
             perf['episode_step'].append(step_number-start_steps)
