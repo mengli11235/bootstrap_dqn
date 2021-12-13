@@ -467,9 +467,9 @@ def train(step_number, last_save):
                 matplotlib_plot_all(perf)
 #                 with open('rewards.txt', 'a') as reward_file:
 #                     print(len(perf['episode_reward']), step_number, perf['avg_rewards'][-1], file=reward_file)
-        avg_eval_reward, highest_eval_score = evaluate(step_number, highest_eval_score)
+        avg_eval_reward, avg_eval_stds, highest_eval_score = evaluate(step_number, highest_eval_score)
         perf['eval_rewards'].append(avg_eval_reward)
-        #perf['eval_num_states'].append(len(eval_states))
+        perf['eval_stds'].append(avg_eval_stds)
         perf['eval_steps'].append(step_number)
         matplotlib_plot_all(perf)
 
@@ -531,7 +531,7 @@ def evaluate(step_number, highest_eval_score):
     efile = os.path.join(model_base_filedir, 'eval_rewards.txt')
     with open(efile, 'a') as eval_reward_file:
         print(step_number, np.mean(eval_rewards), heads_chosen, file=eval_reward_file)
-    return np.mean(eval_rewards), highest_eval_score
+    return np.mean(eval_rewards), np.std(eval_rewards), highest_eval_score
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -571,7 +571,7 @@ if __name__ == '__main__':
         "NUM_EVAL_EPISODES":5, # num examples to average in eval
         "BUFFER_SIZE":int(1e6), # Buffer size for experience replay
         "CHECKPOINT_EVERY_STEPS":5000000, # how often to write pkl of model and npz of data buffer
-        "EVAL_FREQUENCY":5000, # how often to run evaluation episodes
+        "EVAL_FREQUENCY":10000, # how often to run evaluation episodes
         "ADAM_LEARNING_RATE":6.25e-5,
         "RMS_LEARNING_RATE": 0.00025, # according to paper = 0.00025
         "RMS_DECAY":0.95,
@@ -584,7 +584,7 @@ if __name__ == '__main__':
         "GAMMA":.99, # Gamma weight in Q update
         "PLOT_EVERY_EPISODES": 50,
         "CLIP_GRAD":5, # Gradient clipping setting
-        "SEED":111,
+        "SEED":101,
         "RANDOM_HEAD":-1, # just used in plotting as demarcation
         "NETWORK_INPUT_SIZE":(84,84),
         "START_TIME":time.time(),
@@ -652,7 +652,7 @@ if __name__ == '__main__':
                 'episode_times':[],
                 'episode_relative_times':[],
                 'eval_rewards':[],
-                #'eval_num_states':[],
+                'eval_stds':[],
                 'eval_steps':[]}
 
         start_step_number = 0
