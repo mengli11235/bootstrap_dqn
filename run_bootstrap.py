@@ -152,10 +152,12 @@ class ActionGetter:
                 eps = self.slope_2*step_number + self.intercept_2
         else:
             eps = 0
+        if trajec_action != None:
+            return eps, trajec_action
         if self.random_state.rand() < eps:
             return eps, self.random_state.randint(0, self.n_actions)
-        elif trajec_action != None:
-            return eps, trajec_action
+        # elif trajec_action != None:
+        #     return eps, trajec_action
         else:
             state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
             if not evaluation and ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']):
@@ -322,7 +324,7 @@ def train(step_number, last_save):
     """Contains the training and evaluation loops"""
     epoch_num = len(perf['steps'])
     highest_eval_score = -np.inf
-    highest_train_score = -np.inf
+    highest_train_score = 1
     highest_train_score_trajec = []
     highest_train_score_trajec_action = []
     waves = 0
@@ -439,13 +441,14 @@ def train(step_number, last_save):
             ep_time = et-st
             epoch_frame_episode_last = epoch_frame_episode
             if 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > highest_train_score:
-                highest_train_score_trajec = current_trajec
-                highest_train_score_trajec_action = current_trajec_action
+                max_trajec = int(len(current_trajec)/10)
+                highest_train_score_trajec = current_trajec[:-max_trajec]
+                highest_train_score_trajec_action = current_trajec_action[:-max_trajec]
                 highest_train_score = episode_reward_sum
 
-            elif 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > 0.8*highest_train_score:
-                highest_train_score_trajec.extend(current_trajec)
-                highest_train_score_trajec_action.extend(current_trajec_action)
+            # elif 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > 0.8*highest_train_score:
+            #     highest_train_score_trajec.extend(current_trajec)
+            #     highest_train_score_trajec_action.extend(current_trajec_action)
 
             perf['steps'].append(step_number)
             perf['episode_step'].append(step_number-start_steps)
@@ -548,7 +551,7 @@ if __name__ == '__main__':
 
     info = {
         #"GAME":'roms/breakout.bin', # gym prefix
-        "GAME":'roms/qbert.bin', # gym prefix
+        "GAME":'roms/breakout.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
@@ -594,7 +597,7 @@ if __name__ == '__main__':
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "SURGE_INTERVAL":2e5,
-        "IMPROVEMENT": ['PRIOR', ''],
+        "IMPROVEMENT": ['TRAJEC', ''],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
