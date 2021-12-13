@@ -152,8 +152,6 @@ class ActionGetter:
                 eps = self.slope_2*step_number + self.intercept_2
         else:
             eps = 0
-        if trajec_action != None:
-            return eps, trajec_action
         if self.random_state.rand() < eps:
             return eps, self.random_state.randint(0, self.n_actions)
         # elif trajec_action != None:
@@ -598,7 +596,7 @@ if __name__ == '__main__':
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
         "SURGE_INTERVAL":2e5,
-        "IMPROVEMENT": ['TRAJEC', ''],
+        "IMPROVEMENT": ['', ''],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
