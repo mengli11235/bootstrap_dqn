@@ -247,8 +247,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
                 #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
                 #print(prior_next_pi.size())
-                next_q_vals *= 1 + 0.1 * prior_next_pi[next_k]
-                next_policy_vals *= 1 + 0.1 * prior_next_pi[next_k]
+                next_q_vals += info['PRIOR_SCALE']*prior_next_pi[next_k]
+                next_policy_vals += info['PRIOR_SCALE']*prior_next_pi[next_k]
 
             if info['DOUBLE_DQN']:
                 next_actions = next_policy_vals.max(1, True)[1]
@@ -438,6 +438,8 @@ def train(step_number, last_save):
             et = time.time()
             ep_time = et-st
             epoch_frame_episode_last = epoch_frame_episode
+            if 'PRIOR' in info['IMPROVEMENT']:
+                info['PRIOR_SCALE'] = 1+episode_reward_sum//20
             if 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > highest_train_score:
                 max_trajec = int(len(current_trajec)/10)
                 highest_train_score_trajec = current_trajec[:-max_trajec]
@@ -549,8 +551,8 @@ if __name__ == '__main__':
     print("running on %s"%device)
 
     info = {
-        #"GAME":'roms/breakout.bin', # gym prefix
-        "GAME":'roms/freeway.bin', # gym prefix
+        "GAME":'roms/breakout.bin', # gym prefix
+        #"GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
