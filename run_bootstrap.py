@@ -214,6 +214,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         # prior_next_pi = prior_net(next_states, None).detach()
         # prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'],  q_policy_vals[0].size(-1)).to(info['DEVICE'])
         # nn.init.normal_(prior_pi, 0, 0.02)
+        info['PRIOR_SCALE'] = 1+next_q_target_vals.max()//20
         prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], q_policy_vals[0].size(-1)).to(info['DEVICE'])
         nn.init.normal_(prior_next_pi, 0, 0.02)
 
@@ -438,8 +439,8 @@ def train(step_number, last_save):
             et = time.time()
             ep_time = et-st
             epoch_frame_episode_last = epoch_frame_episode
-            if 'PRIOR' in info['IMPROVEMENT']:
-                info['PRIOR_SCALE'] = 1+episode_reward_sum//20
+            # if 'PRIOR' in info['IMPROVEMENT']:
+            #     info['PRIOR_SCALE'] = 1+episode_reward_sum//20
             if 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > highest_train_score:
                 max_trajec = int(len(current_trajec)/10)
                 highest_train_score_trajec = current_trajec[:-max_trajec]
