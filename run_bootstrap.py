@@ -214,7 +214,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         # prior_next_pi = prior_net(next_states, None).detach()
         # prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'],  q_policy_vals[0].size(-1)).to(info['DEVICE'])
         # nn.init.normal_(prior_pi, 0, 0.02)
-        info['PRIOR_SCALE'] = 1+torch.stack(next_q_target_vals).detach().max()//20
+        #info['PRIOR_SCALE'] = 1+torch.stack(next_q_target_vals).detach().max()//20
         prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], q_policy_vals[0].size(-1)).to(info['DEVICE'])
         nn.init.normal_(prior_next_pi, 0, 0.02)
 
@@ -248,6 +248,8 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
             if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
                 #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
                 #print(prior_next_pi.size())
+                
+                info['PRIOR_SCALE'] = 1+next_q_vals.max()//20
                 next_q_vals += info['PRIOR_SCALE']*prior_next_pi[next_k]
                 next_policy_vals += info['PRIOR_SCALE']*prior_next_pi[next_k]
 
