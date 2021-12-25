@@ -319,7 +319,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         discriminator_loss.backward()
         nn.utils.clip_grad_norm_(discriminator.parameters(), info['CLIP_GRAD'])
         opt_discriminator.step()
-    return info['PRIOR_SCALE'] #np.mean(losses)#+discriminator_loss.detach().item()
+    return info['PRIOR_SCALE'].cpu() #np.mean(losses)#+discriminator_loss.detach().item()
 
 def train(step_number, last_save):
     """Contains the training and evaluation loops"""
