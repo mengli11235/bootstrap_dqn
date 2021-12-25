@@ -214,6 +214,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         # prior_next_pi = prior_net(next_states, None).detach()
         # prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'],  q_policy_vals[0].size(-1)).to(info['DEVICE'])
         # nn.init.normal_(prior_pi, 0, 0.02)
+        q_record = torch.stack(next_q_target_vals).detach().max()
         info['PRIOR_SCALE'] = 1+torch.stack(next_q_target_vals).detach().max()//20
         prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], q_policy_vals[0].size(-1)).to(info['DEVICE'])
         nn.init.normal_(prior_next_pi, 0, 0.02)
@@ -319,7 +320,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         discriminator_loss.backward()
         nn.utils.clip_grad_norm_(discriminator.parameters(), info['CLIP_GRAD'])
         opt_discriminator.step()
-    return info['PRIOR_SCALE'].cpu() #np.mean(losses)#+discriminator_loss.detach().item()
+    return q_record.cpu() #np.mean(losses)#+discriminator_loss.detach().item()
 
 def train(step_number, last_save):
     """Contains the training and evaluation loops"""
