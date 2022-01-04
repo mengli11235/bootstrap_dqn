@@ -215,9 +215,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         # prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'],  q_policy_vals[0].size(-1)).to(info['DEVICE'])
         # nn.init.normal_(prior_pi, 0, 0.02)
         q_record = torch.stack(next_q_target_vals).detach().max()
-        info['PRIOR_SCALE'] = 1+torch.stack(next_q_target_vals).detach().max()
+        info['PRIOR_SCALE'] = 1+torch.stack(next_q_target_vals).detach().max()/20
         prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], q_policy_vals[0].size(-1)).to(info['DEVICE'])
-        nn.init.normal_(prior_next_pi, -0.05, 0.02)
+        nn.init.normal_(prior_next_pi, 0, 0.02)
         #prior_next_pi = 1- prior_next_pi
 
     elif 'PRETRAIN' in info['IMPROVEMENT']:
