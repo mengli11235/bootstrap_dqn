@@ -251,7 +251,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
                 #print(prior_next_pi.size())
                 
-                #info['PRIOR_SCALE'] = 1+next_q_vals.max()//20
+                #info['PRIOR_SCALE'] = 1+next_q_vals.max()/20
                 next_q_vals += info['PRIOR_SCALE']*prior_next_pi[next_k].detach()
                 next_policy_vals += info['PRIOR_SCALE']*prior_next_pi[next_k].detach()
 
@@ -447,7 +447,7 @@ def train(step_number, last_save):
             ep_time = et-st
             epoch_frame_episode_last = epoch_frame_episode
             # if 'PRIOR' in info['IMPROVEMENT']:
-            #     info['PRIOR_SCALE'] = 1+episode_reward_sum//20
+            #     info['PRIOR_SCALE'] = 1+episode_reward_sum/20
             if 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > highest_train_score:
                 max_trajec = int(len(current_trajec)/10)
                 highest_train_score_trajec = current_trajec[:-max_trajec]
