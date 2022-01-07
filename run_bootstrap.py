@@ -51,6 +51,9 @@ def matplotlib_plot_all(p):
     episode_loss_mask = np.isfinite(p['episode_loss'])
     plot_dict_losses({'steps loss':{'index':np.array(steps)[episode_loss_mask], 'val':np.array(p['episode_loss'])[episode_loss_mask]}}, name=os.path.join(model_base_filedir, 'steps_loss.png'))
 
+    q_mask = np.isfinite(p['q_record'])
+    plot_dict_losses({'max q values':{'index':np.array(steps)[q_mask], 'val':np.array(p['q_record'])[q_mask]}}, name=os.path.join(model_base_filedir, 'q_record.png'))
+
     plot_dict_losses({'steps eps':{'index':steps, 'val':p['eps_list']}}, name=os.path.join(model_base_filedir, 'steps_mean_eps.png'), rolling_length=0)
     plot_dict_losses({'steps reward':{'index':steps,'val':p['episode_reward']}},  name=os.path.join(model_base_filedir, 'steps_reward.png'), rolling_length=0)
     plot_dict_losses({'episode reward':{'index':epochs, 'val':p['episode_reward']}}, name=os.path.join(model_base_filedir, 'episode_reward.png'), rolling_length=0)
@@ -208,13 +211,12 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         # prior_next_pi = (1-next_logits.detach()).transpose(0,1)
         discriminator_loss = ce_loss(logits, active_heads)
 
-
+    q_record = torch.stack(next_q_target_vals).detach().max()
     if 'PRIOR' in info['IMPROVEMENT']:
         # prior_pi = prior_net(states, None).detach()
         # prior_next_pi = prior_net(next_states, None).detach()
         # prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'],  q_policy_vals[0].size(-1)).to(info['DEVICE'])
         # nn.init.normal_(prior_pi, 0, 0.02)
-        q_record = torch.stack(next_q_target_vals).detach().max()
         info['PRIOR_SCALE'] = 1+torch.stack(next_q_target_vals).detach().max()/20
         prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], q_policy_vals[0].size(-1)).to(info['DEVICE'])
         nn.init.normal_(prior_next_pi, 0, 0.02)
@@ -324,7 +326,7 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
         discriminator_loss.backward()
         nn.utils.clip_grad_norm_(discriminator.parameters(), info['CLIP_GRAD'])
         opt_discriminator.step()
-    return q_record.cpu() #np.mean(losses)#+discriminator_loss.detach().item()
+    return q_record.cpu(), np.mean(losses)#+discriminator_loss.detach().item()
 
 def train(step_number, last_save):
     """Contains the training and evaluation loops"""
@@ -360,6 +362,7 @@ def train(step_number, last_save):
             epoch_num += 1
             ep_eps_list = []
             ptloss_list = []
+            q_list = []
             action_list = []
             current_trajec = []
             current_trajec_action = []
@@ -422,8 +425,9 @@ def train(step_number, last_save):
 
                 if step_number % info['LEARN_EVERY_STEPS'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
                     _states, _actions, _rewards, _next_states, _terminal_flags, _active_heads, _masks = replay_memory.get_minibatch(info['BATCH_SIZE'])
-                    ptloss = ptlearn(_states, _actions, _rewards, _next_states, _terminal_flags, _active_heads, _masks)
+                    q_record, ptloss = ptlearn(_states, _actions, _rewards, _next_states, _terminal_flags, _active_heads, _masks)
                     ptloss_list.append(ptloss)
+                    q_list.append(q_record)
 
 
                 if 'SURGE' in info['IMPROVEMENT'] and step_number%info['SURGE_INTERVAL'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN'] and waves < info['N_ENSEMBLE']-1:
@@ -465,6 +469,7 @@ def train(step_number, last_save):
             perf['episode_head'].append(active_head)
             perf['eps_list'].append(np.mean(ep_eps_list))
             perf['episode_loss'].append(np.mean(ptloss_list))
+            perf['q_record'].append(np.mean(q_list))
             perf['episode_reward'].append(episode_reward_sum)
             perf['episode_times'].append(ep_time)
             perf['episode_relative_times'].append(time.time()-info['START_TIME'])
@@ -660,6 +665,7 @@ if __name__ == '__main__':
                 'episode_head':[],
                 'eps_list':[],
                 'episode_loss':[],
+                'q_record':[],
                 'episode_reward':[],
                 'episode_times':[],
                 'episode_relative_times':[],
