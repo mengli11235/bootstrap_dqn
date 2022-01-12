@@ -715,15 +715,15 @@ if __name__ == '__main__':
                 diayn_dict = torch.load(os.path.join(info['PRETRAIN_MODEL_PATH'], "best.pkl"))
                 prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'])
 
-        else:
-            prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
-                                    n_actions=env.num_actions,
-                                    network_output_size=info['NETWORK_INPUT_SIZE'][0],
-                                    num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
-            # prior_target_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
-            #                         n_actions=env.num_actions,
-            #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
-            #                         num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
+        # else:
+        #     prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
+        #                             n_actions=env.num_actions,
+        #                             network_output_size=info['NETWORK_INPUT_SIZE'][0],
+        #                             num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
+        #     # prior_target_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
+        #     #                         n_actions=env.num_actions,
+        #     #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
+        #     #                         num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
         if 'DISCRIMINATOR' in info['IMPROVEMENT']:
             discriminator = EnsembleNet(n_ensemble=1,
                                     n_actions=info['N_ENSEMBLE'],
