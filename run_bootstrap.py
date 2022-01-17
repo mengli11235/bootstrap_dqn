@@ -564,7 +564,7 @@ if __name__ == '__main__':
     print("running on %s"%device)
 
     info = {
-        "GAME":'roms/air_raid.bin', # gym prefix
+        "GAME":'roms/space_invaders.bin', # gym prefix
         #"GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
