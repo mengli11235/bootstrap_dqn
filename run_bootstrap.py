@@ -573,7 +573,7 @@ if __name__ == '__main__':
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
         "PRIOR_SCALE":1, # what to scale prior by
-        "N_ENSEMBLE":20, # number of bootstrap heads to use. when 1, this is a normal dqn
+        "N_ENSEMBLE":10, # number of bootstrap heads to use. when 1, this is a normal dqn
         "LEARN_EVERY_STEPS":4, # updates every 4 steps in osband
         "BERNOULLI_PROBABILITY": 1, # Probability of experience to go to each head - if 1, every experience goes to every head
         "TARGET_UPDATE":10000, # how often to update target network
