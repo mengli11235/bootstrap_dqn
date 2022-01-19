@@ -738,13 +738,13 @@ if __name__ == '__main__':
     target_net.load_state_dict(policy_net.state_dict())
 
     # create optimizer
-    #opt = optim.RMSprop(policy_net.parameters(),
-    #                    lr=info["RMS_LEARNING_RATE"],
-    #                    momentum=info["RMS_MOMENTUM"],
-    #                    eps=info["RMS_EPSILON"],
-    #                    centered=info["RMS_CENTERED"],
-    #                    alpha=info["RMS_DECAY"])
-    opt = optim.Adam(policy_net.parameters(), lr=info['ADAM_LEARNING_RATE'])
+    opt = optim.RMSprop(policy_net.parameters(),
+                       lr=info["RMS_LEARNING_RATE"],
+                       momentum=info["RMS_MOMENTUM"],
+                       eps=info["RMS_EPSILON"],
+                       centered=info["RMS_CENTERED"],
+                       alpha=info["RMS_DECAY"])
+    #opt = optim.Adam(policy_net.parameters(), lr=info['ADAM_LEARNING_RATE'])
 
     kl_loss = nn.KLDivLoss()
     ce_loss = nn.CrossEntropyLoss()
