@@ -486,6 +486,8 @@ def train(step_number, last_save):
 #                     print(len(perf['episode_reward']), step_number, perf['avg_rewards'][-1], file=reward_file)
         avg_eval_reward, avg_eval_stds, highest_eval_score = evaluate(step_number, highest_eval_score)
         perf['eval_rewards'].append(avg_eval_reward)
+        perf['highest_eval_score'].append(highest_eval_score)
+
         perf['eval_stds'].append(avg_eval_stds)
         perf['eval_steps'].append(step_number)
         matplotlib_plot_all(perf)
@@ -670,6 +672,7 @@ if __name__ == '__main__':
                 'episode_times':[],
                 'episode_relative_times':[],
                 'eval_rewards':[],
+                'highest_eval_score':[],
                 'eval_stds':[],
                 'eval_steps':[]}
 
