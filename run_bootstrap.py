@@ -571,7 +571,7 @@ if __name__ == '__main__':
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
-        "DUELING":False, # use dueling dqn
+        "DUELING":True, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
         "PRIOR_SCALE":1, # what to scale prior by
