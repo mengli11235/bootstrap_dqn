@@ -571,7 +571,7 @@ if __name__ == '__main__':
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
-        "DUELING":True, # use dueling dqn
+        "DUELING":False, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
         "PRIOR_SCALE":1, # what to scale prior by
@@ -741,13 +741,13 @@ if __name__ == '__main__':
     target_net.load_state_dict(policy_net.state_dict())
 
     # create optimizer
-    opt = optim.RMSprop(policy_net.parameters(),
-                       lr=info["RMS_LEARNING_RATE"],
-                       momentum=info["RMS_MOMENTUM"],
-                       eps=info["RMS_EPSILON"],
-                       centered=info["RMS_CENTERED"],
-                       alpha=info["RMS_DECAY"])
-    #opt = optim.Adam(policy_net.parameters(), lr=info['ADAM_LEARNING_RATE'])
+    # opt = optim.RMSprop(policy_net.parameters(),
+    #                    lr=info["RMS_LEARNING_RATE"],
+    #                    momentum=info["RMS_MOMENTUM"],
+    #                    eps=info["RMS_EPSILON"],
+    #                    centered=info["RMS_CENTERED"],
+    #                    alpha=info["RMS_DECAY"])
+    opt = optim.Adam(policy_net.parameters(), lr=info['ADAM_LEARNING_RATE'])
 
     kl_loss = nn.KLDivLoss()
     ce_loss = nn.CrossEntropyLoss()
