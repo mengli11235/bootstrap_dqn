@@ -452,6 +452,8 @@ if __name__ == '__main__':
     info['args'] = args
     info['load_time'] = datetime.date.today().ctime()
     info['NORM_BY'] = float(info['NORM_BY'])
+    info['NAME'] = info['GAME'][5:-4]
+
 
     # create environment
     env = Environment(rom_file=info['GAME'], frame_skip=info['FRAME_SKIP'],
@@ -525,7 +527,6 @@ if __name__ == '__main__':
     write_info_file(info, model_base_filepath, start_step_number)
     heads = list(range(info['N_ENSEMBLE']))
     seed_everything(info["SEED"])
-    info['NAME'] = info['GAME'][5:-4]
 
     policy_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
                                       n_actions=env.num_actions,
