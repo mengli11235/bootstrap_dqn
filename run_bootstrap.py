@@ -127,7 +127,7 @@ class ActionGetter:
             self.slope_2 = -(self.eps_final - self.eps_final_frame)/(self.max_steps - self.eps_annealing_frames - self.replay_memory_start_size)
             self.intercept_2 = self.eps_final_frame - self.slope_2*self.max_steps
 
-    def pt_get_action(self, step_number, state, active_head=None, evaluation=False, trajec_action=None):
+    def pt_get_action(self, step_number, state, active_head=None, evaluation=False):
         """
         Args:
             step_number: int number of the current step
@@ -137,11 +137,6 @@ class ActionGetter:
         Returns:
             An integer between 0 and n_actions
         """
-        #state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
-        # if 'discriminator' in info['IMPROVEMENT']:
-        #     logits = discriminator(state, 0)
-        #     #logits = torch.softmax(discriminator(states, 0), dim=-1)
-        #     action_head = torch.argmax(logits, dim=-1).item()
 
         if evaluation:
             eps = self.eps_evaluation
@@ -157,31 +152,22 @@ class ActionGetter:
             eps = 0
         if self.random_state.rand() < eps:
             return eps, self.random_state.randint(0, self.n_actions)
-        # elif trajec_action != None:
-        #     return eps, trajec_action
         else:
             state = torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE'])
-            if not evaluation and ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']):
-                vals = policy_net(state, None)
-                acts = [torch.argmax(vals[h],dim=1).item() for h in range(active_head+1)]
-                if len(acts) == 1:
-                    acts = acts[0]
-                return eps, acts
+            vals = policy_net(state, active_head)
+            if active_head is not None:
+                action = torch.argmax(vals, dim=1).item()
+                return eps, action
             else:
-                vals = policy_net(state, active_head)
-                if active_head is not None:
-                    action = torch.argmax(vals, dim=1).item()
-                    return eps, action
-                else:
-                    # vote
-                    acts = [torch.argmax(vals[h],dim=1).item() for h in range(info['N_ENSEMBLE'])]
-                    data = Counter(acts)
-                    action = data.most_common(1)[0][0]
-                    heads_chosen = [0]*info['N_ENSEMBLE']
-                    for i,head in enumerate(acts):
-                        if action == head:
-                            heads_chosen[i] += 1
-                    return heads_chosen, action
+                # vote
+                acts = [torch.argmax(vals[h],dim=1).item() for h in range(info['N_ENSEMBLE'])]
+                data = Counter(acts)
+                action = data.most_common(1)[0][0]
+                heads_chosen = [0]*info['N_ENSEMBLE']
+                for i,head in enumerate(acts):
+                    if action == head:
+                        heads_chosen[i] += 1
+                return heads_chosen, action
 
 def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads, masks):
     states = torch.Tensor(states.astype(np.float)/info['NORM_BY']).to(info['DEVICE'])
@@ -200,65 +186,31 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     next_q_policy_vals = policy_net(next_states, None)
 
     cnt_losses = []
-    if 'DISCRIMINATOR' in info['IMPROVEMENT']:
-        opt_discriminator.zero_grad()
-        logits = torch.softmax(discriminator(states, 0), dim=-1)
-        masks = 1-logits.detach()
-        #print(active_heads, logits)
-        # next_logits = torch.softmax(discriminator(next_states, 0), dim=-1)
-
-        # prior_pi = (1-logits.detach()).transpose(0,1)
-        # prior_next_pi = (1-next_logits.detach()).transpose(0,1)
-        discriminator_loss = ce_loss(logits, active_heads)
 
     q_record = torch.stack(next_q_target_vals).detach().max()
     if 'PRIOR' in info['IMPROVEMENT']:
-        # prior_pi = prior_net(states, None).detach()
-        # prior_next_pi = prior_net(next_states, None).detach()
         # prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'],  q_policy_vals[0].size(-1)).to(info['DEVICE'])
-        # nn.init.normal_(prior_pi, 0, 0.02)
         info['PRIOR_SCALE'] = 1+torch.stack(next_q_target_vals).detach().max()/20
         prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], q_policy_vals[0].size(-1)).to(info['DEVICE'])
         nn.init.normal_(prior_next_pi, 0, 0.02)
         #prior_next_pi = 1- prior_next_pi
 
-    elif 'PRETRAIN' in info['IMPROVEMENT']:
-        prior_pi = prior_net.forward(states, return_all_heads=True)
-        prior_next_pi  = prior_net.forward(next_states, return_all_heads=True)
-        #print(prior_next_pi[0], next_q_target_vals[0])
-#         q_policy_vals += info['PRIOR_SCALE'] * prior_pi
-#         next_q_target_vals += info['PRIOR_SCALE'] * prior_next_pi
-
-    if 'entropy' in info['IMPROVEMENT']:
-        prior_q_policy_vals = policy_net.return_prior(states, None)
-        prior_next_q_target_vals = target_net.return_prior(next_states, None)
-        prior_next_q_policy_vals = policy_net.return_prior(next_states, None)
-    if 'ROTATION' in info['IMPROVEMENT']:
-        random_state.shuffle(heads)
-
     for k in range(info['N_ENSEMBLE']):
         #TODO finish masking
         total_used = torch.sum(masks[:,k])
         if total_used > 0.0:
-            if ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']) and k > 0:
-                next_k = k-1
-            elif 'ROTATION' in info['IMPROVEMENT']:
-                next_k = heads[k]
-            else:
-                next_k = k
-
-            next_q_vals = next_q_target_vals[next_k].data
-            next_policy_vals = next_q_policy_vals[next_k].data
-            if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
+            next_q_vals = next_q_target_vals[k].data
+            next_policy_vals = next_q_policy_vals[k].data
+            if 'PRIOR' in info['IMPROVEMENT']:
                 #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
                 #print(prior_next_pi.size())
                 
                 #info['PRIOR_SCALE'] = 1+next_q_vals.max()/20
-                next_q_vals += info['PRIOR_SCALE']*prior_next_pi[next_k].detach()
-                next_policy_vals += info['PRIOR_SCALE']*prior_next_pi[next_k].detach()
+                next_q_vals += info['PRIOR_SCALE']*prior_next_pi[k].detach()
+                next_policy_vals += info['PRIOR_SCALE']*prior_next_pi[k].detach()
 
-                #next_q_vals *= info['PRIOR_SCALE']*prior_next_pi[next_k].detach()
-                #next_policy_vals *= info['PRIOR_SCALE']*prior_next_pi[next_k].detach()
+                #next_q_vals *= info['PRIOR_SCALE']*prior_next_pi[k].detach()
+                #next_policy_vals *= info['PRIOR_SCALE']*prior_next_pi[k].detach()
 
             if info['DOUBLE_DQN']:
                 next_actions = next_policy_vals.max(1, True)[1]
@@ -267,46 +219,9 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
                 next_qs = next_q_vals.max(1)[0] # max returns a pair
 
             preds = q_policy_vals[k].gather(1, actions[:,None]).squeeze(1) 
-            # if k==0:
-            #     print(q_policy_vals[k])
 
-            # if 'PRETRAIN' in info['IMPROVEMENT'] or 'PRIOR' in info['IMPROVEMENT']:
-            #     if not info['DOUBLE_DQN']:
-            #         next_actions = torch.argmax(next_q_vals, dim=1)
-            #     prior_preds = prior_pi[k].gather(1, actions[:,None]).squeeze(1)
-            #     next_prior_preds = prior_next_pi[k].gather(1, next_actions).squeeze(1)
-                
-            #     preds += info['PRIOR_SCALE'] * prior_preds
-            #     next_qs += info['PRIOR_SCALE'] * next_prior_preds
-
-            targets = info['GAMMA'] * next_qs * (1-terminal_flags)
-            if not ('SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']) or k == 0:
-                targets += rewards
+            targets = info['GAMMA'] * next_qs * (1-terminal_flags) + rewards
             l1loss = F.smooth_l1_loss(preds, targets, reduction='mean')
-            # if 'soft' in info['IMPROVEMENT']:
-            #     # soft update
-            #     #soft_prior_loss = 4 * torch.log(torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
-            #     soft_prior_loss =torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
-
-            if 'entropy' in info['IMPROVEMENT']:
-                # # loss of H(a|s,z)
-#                 logits = torch.softmax(prior_q_policy_vals[k], dim=-1) #batch*a
-#                 logits = torch.sum(logits*torch.log(logits), dim=-1) #batch
-#                 l1loss += 0.001*logits.mean() #1
-                #preds = 4 * torch.log(torch.sum(torch.exp(prior_q_policy_vals[k]/4), dim=-1))
-                preds = 1*prior_q_policy_vals[k].gather(1, actions[:,None]).squeeze(1)
-
-
-                #next_qs = 4 * torch.log(torch.sum(torch.exp(prior_next_q_target_vals[k].data/4), dim=-1))
-                prior_next_actions = prior_next_q_policy_vals[k].data.max(1, True)[1]
-
-                next_qs = prior_next_q_target_vals[k].data.gather(1, prior_next_actions).squeeze(1)
-
-                #targets = -discriminator_loss.detach() + info['GAMMA'] * next_qs * (1-terminal_flags)
-                targets = logits[:,k].detach() + info['GAMMA'] * next_qs * (1-terminal_flags)
-
-                l1loss += F.smooth_l1_loss(preds, targets)
-                #l1loss += kl_loss(torch.softmax(prior_q_policy_vals[k], dim=-1),torch.softmax(prior_next_q_target_vals[k].data, dim=-1))-discriminator_loss.detach()
 
             full_loss = masks[:,k]*l1loss #batch*1
             loss = torch.sum(full_loss/total_used)
@@ -322,19 +237,13 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
     nn.utils.clip_grad_norm_(policy_net.parameters(), info['CLIP_GRAD'])
 
     opt.step()
-    if 'DISCRIMINATOR' in info['IMPROVEMENT']:
-        discriminator_loss.backward()
-        nn.utils.clip_grad_norm_(discriminator.parameters(), info['CLIP_GRAD'])
-        opt_discriminator.step()
-    return q_record.cpu(), np.mean(losses)#+discriminator_loss.detach().item()
+
+    return q_record.cpu(), np.mean(losses)
 
 def train(step_number, last_save):
     """Contains the training and evaluation loops"""
     epoch_num = len(perf['steps'])
     highest_eval_score = -np.inf
-    highest_train_score = 1
-    highest_train_score_trajec = []
-    highest_train_score_trajec_action = []
     waves = 0
     epoch_frame_episode_last = 0
 
@@ -351,65 +260,25 @@ def train(step_number, last_save):
             st = time.time()
             episode_reward_sum = 0
             epoch_frame_episode = 0
-            if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
-                logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
-                active_head = torch.argmin(logits, dim=-1).item()
-            # elif 'SURGE' in info['IMPROVEMENT']:
-            #     active_head = waves
-            else:
-                random_state.shuffle(heads)
-                active_head = heads[0]
+            random_state.shuffle(heads)
+            active_head = heads[0]
             epoch_num += 1
             ep_eps_list = []
             ptloss_list = []
             q_list = []
             action_list = []
-            current_trajec = []
-            current_trajec_action = []
             while not terminal:
-                trajec_action = None
                 if life_lost:
                     action = 1
                     eps = 0
-                else:
-                    if 'SURGE' in info['IMPROVEMENT']:
-                        active_head = 0
-                        if waves > 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
-                            active_head = waves - int(epoch_frame_episode/(epoch_frame_episode_last/(waves+1)))
-                            if active_head < 0:
-                                active_head = 0
-                    elif 'SURGE_OUT' in info['IMPROVEMENT']:
-                        active_head = 0
-                        if step_number > info['MIN_HISTORY_TO_LEARN']:
-                            active_head = waves
 
-                    # if 'DISCRIMINATOR' in info['IMPROVEMENT'] and step_number > info['MIN_HISTORY_TO_LEARN']:
-                    #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
-                    #     active_head = torch.argmin(logits, dim=-1).item()
+                eps,action = action_getter.pt_get_action(step_number, state=state, active_head=active_head)
 
-                    if 'TRAJEC' in info['IMPROVEMENT'] and state.tobytes() in highest_train_score_trajec:
-                        trajec_action = highest_train_score_trajec_action[highest_train_score_trajec.index(state.tobytes())]
-                        
-                    if ('SURGE' not in info['IMPROVEMENT'] and 'SURGE_OUT' not in info['IMPROVEMENT']) or len(action_list) == 0:
-                        eps,action = action_getter.pt_get_action(step_number, state=state, active_head=active_head, trajec_action=trajec_action)
-                        if not np.isscalar(action):
-                            action_list = action
-                            action = action_list.pop(0)
-
-                    else:
-                        action = action_list.pop(0)
-                        if len(ep_eps_list):
-                            eps = ep_eps_list[-1]
-                        else:
-                            eps = info['EPS_INITIAL']
 
 
                 ep_eps_list.append(eps)
                 next_state, reward, life_lost, terminal = env.step(action)
                 # Store transition in the replay memory
-                if 'TRAJEC' in info['IMPROVEMENT']:
-                    current_trajec.append(state.tobytes())
-                    current_trajec_action.append(action)
 
                 replay_memory.add_experience(action=action,
                                                 frame=next_state[-1],
@@ -429,43 +298,17 @@ def train(step_number, last_save):
                     ptloss_list.append(ptloss)
                     q_list.append(q_record)
 
-
-                if 'SURGE' in info['IMPROVEMENT'] and step_number%info['SURGE_INTERVAL'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN'] and waves < info['N_ENSEMBLE']-1:
-                    waves += 1
-                elif 'SURGE_OUT' in info['IMPROVEMENT'] and step_number%info['SURGE_INTERVAL'] == 0 and step_number > info['MIN_HISTORY_TO_LEARN']:
-                    waves = (waves+1)%info['N_ENSEMBLE']
-
                 if step_number % info['TARGET_UPDATE'] == 0 and step_number >  info['MIN_HISTORY_TO_LEARN']:
                     print("++++++++++++++++++++++++++++++++++++++++++++++++")
                     print('updating target network at %s'%step_number)
                     target_net.load_state_dict(policy_net.state_dict())
-                    #prior_target_net.load_state_dict(prior_net.state_dict())
-
-                    # if 'PRIOR' in info['IMPROVEMENT']:
-                    #     prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
-                    #         n_actions=env.num_actions,
-                    #         network_output_size=info['NETWORK_INPUT_SIZE'][0],
-                    #         num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
 
             et = time.time()
             ep_time = et-st
             epoch_frame_episode_last = epoch_frame_episode
-            # if 'PRIOR' in info['IMPROVEMENT']:
-            #     info['PRIOR_SCALE'] = 1+episode_reward_sum/20
-            if 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > highest_train_score:
-                max_trajec = int(len(current_trajec)/10)
-                highest_train_score_trajec = current_trajec[:-max_trajec]
-                highest_train_score_trajec_action = current_trajec_action[:-max_trajec]
-                highest_train_score = episode_reward_sum
-
-            elif 'TRAJEC' in info['IMPROVEMENT'] and episode_reward_sum > 0.8*highest_train_score:
-                max_trajec = int(len(current_trajec)/10)
-                highest_train_score_trajec.extend(current_trajec[:-max_trajec])
-                highest_train_score_trajec_action.extend(current_trajec_action[:-max_trajec])
 
             perf['steps'].append(step_number)
             perf['episode_step'].append(step_number-start_steps)
-            #print(step_number,active_head)
             perf['episode_head'].append(active_head)
             perf['eps_list'].append(np.mean(ep_eps_list))
             perf['episode_loss'].append(np.mean(ptloss_list))
@@ -482,8 +325,6 @@ def train(step_number, last_save):
                 print('last rewards', perf['episode_reward'][-info['PLOT_EVERY_EPISODES']:])
 
                 matplotlib_plot_all(perf)
-#                 with open('rewards.txt', 'a') as reward_file:
-#                     print(len(perf['episode_reward']), step_number, perf['avg_rewards'][-1], file=reward_file)
         avg_eval_reward, avg_eval_stds, highest_eval_score = evaluate(step_number, highest_eval_score)
         perf['eval_rewards'].append(avg_eval_reward)
         perf['highest_eval_score'].append(highest_eval_score)
@@ -518,14 +359,8 @@ def evaluate(step_number, highest_eval_score):
                 action = 1
             else:
                 active_head=None
-                # if 'DISCRIMINATOR' in info['IMPROVEMENT']:
-                #     logits = discriminator(torch.Tensor(state.astype(np.float)/info['NORM_BY'])[None,:].to(info['DEVICE']), 0).detach()
-                #     action_head = torch.argmax(logits, dim=-1).item()
-                if 'SURGE' in info['IMPROVEMENT'] or 'SURGE_OUT' in info['IMPROVEMENT']:
-                    active_head = 0
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=active_head, evaluation=True)
-                if 'SURGE' not in info['IMPROVEMENT'] and 'SURGE_OUT' not in info['IMPROVEMENT']:
-                    heads_chosen = [x+y for x,y in zip(heads_chosen, eps)]
+                heads_chosen = [x+y for x,y in zip(heads_chosen, eps)]
             next_state, reward, life_lost, terminal = eval_env.step(action)
             # if next_state[-1].tobytes() not in eval_states:
             #     eval_states.append(next_state[-1].tobytes())
@@ -546,7 +381,6 @@ def evaluate(step_number, highest_eval_score):
 
     print("Evaluation score:\n", np.mean(eval_rewards))
 
-    # Show the evaluation score in tensorboard
     efile = os.path.join(model_base_filedir, 'eval_rewards.txt')
     with open(efile, 'a') as eval_reward_file:
         print(step_number, np.mean(eval_rewards), heads_chosen, file=eval_reward_file)
@@ -566,12 +400,11 @@ if __name__ == '__main__':
     print("running on %s"%device)
 
     info = {
-        "GAME":'roms/alien.bin', # gym prefix
+        "GAME":'roms/qbert.bin', # gym prefix
         #"GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
-        "PRETRAIN_MODEL_PATH":'diayn_net_breakout', # start files with name
-        "DUELING":True, # use dueling dqn
+        "DUELING":False, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
         "PRIOR_SCALE":1, # what to scale prior by
@@ -693,6 +526,7 @@ if __name__ == '__main__':
     write_info_file(info, model_base_filepath, start_step_number)
     heads = list(range(info['N_ENSEMBLE']))
     seed_everything(info["SEED"])
+    info['NAME'] = info['GAME'][5:-4]
 
     policy_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
                                       n_actions=env.num_actions,
@@ -702,41 +536,7 @@ if __name__ == '__main__':
                                       n_actions=env.num_actions,
                                       network_output_size=info['NETWORK_INPUT_SIZE'][0],
                                       num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
-    if info['PRIOR']:
-        if 'PRETRAIN' in info['IMPROVEMENT'] and 'PRIOR' not in info['IMPROVEMENT']:
-            prior_net = TanhGaussianPolicy(
-                        obs_dim=info['NETWORK_INPUT_SIZE'],
-                        action_dim=env.num_actions,
-                        n_ensemble = info['N_ENSEMBLE'],
-                        history_size = info['HISTORY_SIZE'],
-                        device = info['DEVICE'],
-                        if_dueling = False,)
-            # prior_net = QNet(n_actions=env.num_actions,
-            #             network_output_size=info['NETWORK_INPUT_SIZE'],
-            #             num_channels=info['HISTORY_SIZE']+1, dueling=False).to(device)
-            if 'LOAD' in info['IMPROVEMENT'] and os.path.exists(info['PRETRAIN_MODEL_PATH']):
-                diayn_dict = torch.load(os.path.join(info['PRETRAIN_MODEL_PATH'], "best.pkl"))
-                prior_net.get_network().load_state_dict(diayn_dict['policy_net_state_dict'])
 
-        # else:
-        #     prior_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
-        #                             n_actions=env.num_actions,
-        #                             network_output_size=info['NETWORK_INPUT_SIZE'][0],
-        #                             num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
-        #     # prior_target_net = EnsembleNet(n_ensemble=info['N_ENSEMBLE'],
-        #     #                         n_actions=env.num_actions,
-        #     #                         network_output_size=info['NETWORK_INPUT_SIZE'][0],
-        #     #                         num_channels=info['HISTORY_SIZE'], dueling=info['DUELING']).to(info['DEVICE'])
-        if 'DISCRIMINATOR' in info['IMPROVEMENT']:
-            discriminator = EnsembleNet(n_ensemble=1,
-                                    n_actions=info['N_ENSEMBLE'],
-                                    network_output_size=info['NETWORK_INPUT_SIZE'][0],
-                                    num_channels=info['HISTORY_SIZE'], dueling=False).to(info['DEVICE'])
-            opt_discriminator = optim.Adam(discriminator.parameters(), lr=info['ADAM_LEARNING_RATE'])
-
-            # print("using randomized prior")
-            # policy_net = NetWithPrior(policy_net, prior_net, info['PRIOR_SCALE'])
-            # target_net = NetWithPrior(target_net, prior_net, info['PRIOR_SCALE'])
 
     target_net.load_state_dict(policy_net.state_dict())
 
