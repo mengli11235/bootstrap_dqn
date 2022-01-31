@@ -62,9 +62,10 @@ def matplotlib_plot_all(p):
 
     eval_steps_mask = np.isfinite(p['eval_steps'])
     eval_rewards_mask = np.isfinite(p['eval_rewards'])
+    eval_score_mask = np.isfinite(p['highest_eval_score'])
 
     plot_dict_losses({'eval rewards':{'index':np.array(p['eval_steps'])[eval_steps_mask], 'val':np.array(p['eval_rewards'])[eval_rewards_mask]}}, name=os.path.join(model_base_filedir, 'eval_rewards_steps.png'), rolling_length=0)
-
+    plot_dict_losses({'highest eval score':{'index':np.array(p['eval_steps'])[eval_steps_mask], 'val':np.array(p['highest_eval_score'])[eval_score_mask]}}, name=os.path.join(model_base_filedir, 'highest_eval_score.png'), rolling_length=0)
     #plot_dict_losses({'eval states':{'index':np.array(p['eval_steps'])[eval_steps_mask], 'val':np.array(p['eval_num_states'])[eval_rewards_mask]}}, name=os.path.join(model_base_filedir, 'eval_num_states_steps.png'), rolling_length=0)
 
 def handle_checkpoint(last_save, cnt):
