@@ -400,11 +400,11 @@ if __name__ == '__main__':
     print("running on %s"%device)
 
     info = {
-        "GAME":'roms/alien.bin', # gym prefix
+        "GAME":'roms/qbert.bin', # gym prefix
         #"GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
-        "DUELING":True, # use dueling dqn
+        "DUELING":False, # use dueling dqn
         "DOUBLE_DQN":True, # use double dqn
         "PRIOR":True, # turn on to use randomized prior
         "PRIOR_SCALE":1, # what to scale prior by
@@ -445,7 +445,7 @@ if __name__ == '__main__':
         "FRAME_SKIP":4, # deterministic frame skips to match deepmind
         "MAX_NO_OP_FRAMES":30, # random number of noops applied to beginning of each episode
         "DEAD_AS_END":True, # do you send finished=true to agent while training when it loses a life
-        "IMPROVEMENT": ['PRIOR', ''],
+        "IMPROVEMENT": ['', ''],
     }
 
     info['FAKE_ACTS'] = [info['RANDOM_HEAD'] for x in range(info['N_ENSEMBLE'])]
