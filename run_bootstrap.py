@@ -80,10 +80,10 @@ def handle_checkpoint(last_save, cnt):
                  'target_net_state_dict':target_net.state_dict(),
                  'perf':perf,
                 }
-        filename = os.path.abspath(model_base_filepath +"_%010dq.pkl"%cnt)
+        filename = os.path.abspath(model_base_filepath +"_bestq.pkl")
         save_checkpoint(state, filename)
         # npz will be added
-        buff_filename = os.path.abspath(model_base_filepath + "_%010dq_train_buffer"%cnt)
+        #buff_filename = os.path.abspath(model_base_filepath + "_%010dq_train_buffer"%cnt)
         #replay_memory.save_buffer(buff_filename)
         print("finished checkpoint", time.time()-st)
         return last_save
@@ -401,7 +401,7 @@ if __name__ == '__main__':
     print("running on %s"%device)
 
     info = {
-        "GAME":'roms/qbert.bin', # gym prefix
+        "GAME":'roms/alien.bin', # gym prefix
         #"GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
