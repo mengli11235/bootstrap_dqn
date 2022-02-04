@@ -23,7 +23,7 @@ def plots_err(xs, ys, ystd, xlabel, ylabel, title, legends, loc="lower right", c
     for i,x in enumerate(xs):
         #plt.errorbar(x, ys[i], xerr=0.5, yerr=2*ystd[i], label=legends[i], color=color[i], linewidth=1.5,) #linestyle=(0, (i+3, 1, 2*i, 1)),)
         plt.plot(x,ys[i], color=color[i], linewidth=1.5,) #linestyle=(0, (i+3, 1, 2*i, 1)),)
-        if True: #i==2:
+        if True: #i==0:
             plt.fill_between(x, ys[i]-2*ystd[i], ys[i]+2*ystd[i], color=color[i], alpha=0.1)
     #plt.legend(loc=loc, ncol=1)
     plt.title(title)
@@ -49,12 +49,15 @@ if __name__ == '__main__':
     steps 2 = perf2['steps']
     eval_steps1 = perf1['eval_steps']
     eval_steps2 = perf2['eval_steps']
-    y1_mean_scores = perf1['highest_eval_score']
+
+    y1_mean_scores = perf1['eval_rewards']
     y1_std_scores = perf1['eval_stds']
-    y2_mean_scores = perf2['highest_eval_score']
-    y2_std_scores = perf2['eval_stds']
     y1q = perf1['q_record']
+
+    y2_mean_scores = perf2['eval_rewards']
+    y2_std_scores = perf2['eval_stds']
     y2q = perf2['q_record']
+    print(perf1['highest_eval_score'], perf2['highest_eval_score'])
 
     title = "Mean Evaluation Scores in "+ game_name
     legends = ['Boot-DQN*', 'Boot-DQN+PR']
