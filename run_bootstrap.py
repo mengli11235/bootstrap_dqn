@@ -19,7 +19,6 @@ from dqn_utils import seed_everything, write_info_file, generate_gif, save_check
 from env import Environment
 from replay import ReplayMemory
 import config
-from diayn_policies import *
 
 def rolling_average(a, n=5) :
     if n == 0:
@@ -491,7 +490,6 @@ if __name__ == '__main__':
         info["SEED"] = model_dict['cnt']
         model_base_filedir = os.path.split(args.model_loadpath)[0]
         start_step_number = start_last_save = model_dict['cnt']
-        info['loaded_from'] = args.model_loadpath
         perf = model_dict['perf']
         start_step_number = perf['steps'][-1]
     else:
