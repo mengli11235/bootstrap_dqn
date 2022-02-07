@@ -57,7 +57,7 @@ if __name__ == '__main__':
     y2_mean_scores = perf2['eval_rewards']
     y2_std_scores = perf2['eval_stds']
     y2q = perf2['q_record']
-    print(perf1['highest_eval_score'], perf2['highest_eval_score'])
+    print(perf1['highest_eval_score'][-1], perf2['highest_eval_score'][-1])
 
     title = "Mean Evaluation Scores in "+ game_name
     legends = ['Boot-DQN*', 'Boot-DQN+PR']
