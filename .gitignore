@@ -15,6 +15,7 @@ checkpoints/
 examples_gan/
 dat/
 data/
+figs/
 #models
 learned_models/
 pretrained_models/
