@@ -377,7 +377,6 @@ def evaluate(step_number, highest_eval_score):
             highest_eval_score = episode_reward_sum
             generate_gif(model_base_filedir, 0, frames_for_gif, 0, name='test')
         frames_for_gif = []
-        eval_env.close()
 
     print("Evaluation score:\n", np.mean(eval_rewards))
 
