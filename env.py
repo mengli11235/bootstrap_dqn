@@ -68,6 +68,9 @@ class Environment(object):
         max_screen = np.maximum(self.prev_screen, screen)
         frame = cv_preprocess_frame(max_screen, self.frame_size)
         return frame
+        
+    def close(self):
+        del(self.ale)
 
     def reset(self):
         self.steps = 0

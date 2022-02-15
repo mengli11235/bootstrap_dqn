@@ -377,7 +377,7 @@ def evaluate(step_number, highest_eval_score):
             highest_eval_score = episode_reward_sum
             generate_gif(model_base_filedir, 0, frames_for_gif, 0, name='test')
         frames_for_gif = []
-
+        eval_env.close()
     print("Evaluation score:\n", np.mean(eval_rewards))
 
     efile = os.path.join(model_base_filedir, 'eval_rewards.txt')
@@ -399,7 +399,7 @@ if __name__ == '__main__':
     print("running on %s"%device)
 
     info = {
-        "GAME":'roms/tennis.bin', # gym prefix
+        "GAME":'roms/jamesbond.bin', # gym prefix
         #"GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
