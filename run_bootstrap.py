@@ -382,7 +382,7 @@ def evaluate(step_number, highest_eval_score):
 
     efile = os.path.join(model_base_filedir, 'eval_rewards.txt')
     with open(efile, 'a') as eval_reward_file:
-        print(step_number, np.mean(eval_rewards), heads_chosen, file=eval_reward_file)
+        print(step_number, np.mean(eval_rewards), highest_eval_score, file=eval_reward_file)
     return np.mean(eval_rewards), np.std(eval_rewards), highest_eval_score
 
 if __name__ == '__main__':
