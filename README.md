@@ -12,7 +12,7 @@ matplotlib='3.3.2'
 # Usagee
 ```run_bootstrap.py``` is the main file. ```visual_plot``` is the file to plot results.
 
-To run experiment, set ```line 401``` in ```run_bootstrap.py```. To run different games, set game names in ```info['GAME']```.
+To run experiment, set ```info``` in ```run_bootstrap.py```. To run different games, set game names in ```info['GAME']```. Set ```info['IMPROVEMENT']``` to use noisy priors or not.
 
 ```bash
 python run_bootstrap.py
