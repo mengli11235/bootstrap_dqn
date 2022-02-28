@@ -9,7 +9,7 @@ torch='1.0.1.post2'
 cv2='4.0.0'  
 matplotlib='3.3.2'
 
-# Usagee
+# Usage
 ```run_bootstrap.py``` is the main file. ```visual_plot``` is the file to plot results.
 
 To run experiment, set ```info``` in ```run_bootstrap.py```. To run different games, set game names in ```info['GAME']```. Set ```info['IMPROVEMENT']``` to use noisy priors or not.
