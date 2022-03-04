@@ -65,7 +65,6 @@ def matplotlib_plot_all(p):
 
     plot_dict_losses({'eval rewards':{'index':np.array(p['eval_steps'])[eval_steps_mask], 'val':np.array(p['eval_rewards'])[eval_rewards_mask]}}, name=os.path.join(model_base_filedir, 'eval_rewards_steps.png'), rolling_length=0)
     plot_dict_losses({'highest eval score':{'index':np.array(p['eval_steps'])[eval_steps_mask], 'val':np.array(p['highest_eval_score'])[eval_score_mask]}}, name=os.path.join(model_base_filedir, 'highest_eval_score.png'), rolling_length=0)
-    #plot_dict_losses({'eval states':{'index':np.array(p['eval_steps'])[eval_steps_mask], 'val':np.array(p['eval_num_states'])[eval_rewards_mask]}}, name=os.path.join(model_base_filedir, 'eval_num_states_steps.png'), rolling_length=0)
 
 def handle_checkpoint(last_save, cnt):
     if (cnt-last_save) >= info['CHECKPOINT_EVERY_STEPS']:
@@ -143,7 +142,6 @@ class ActionGetter:
         elif step_number < self.replay_memory_start_size:
             eps = self.eps_initial
         elif self.eps_annealing_frames > 0:
-            # TODO check this
             if step_number >= self.replay_memory_start_size and step_number < self.replay_memory_start_size + self.eps_annealing_frames:
                 eps = self.slope*step_number + self.intercept
             elif step_number >= self.replay_memory_start_size + self.eps_annealing_frames:
@@ -189,28 +187,22 @@ def ptlearn(states, actions, rewards, next_states, terminal_flags, active_heads,
 
     q_record = torch.stack(next_q_target_vals).detach().max()
     if 'PRIOR' in info['IMPROVEMENT']:
-        # prior_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'],  q_policy_vals[0].size(-1)).to(info['DEVICE'])
         info['PRIOR_SCALE'] = 1+torch.stack(next_q_target_vals).detach().max()/20
         prior_next_pi = torch.empty(info['N_ENSEMBLE'], info['BATCH_SIZE'], q_policy_vals[0].size(-1)).to(info['DEVICE'])
+        # sample priors
         nn.init.normal_(prior_next_pi, 0, 0.02)
-        #prior_next_pi = 1- prior_next_pi
 
     for k in range(info['N_ENSEMBLE']):
-        #TODO finish masking
+        # finish masking
         total_used = torch.sum(masks[:,k])
         if total_used > 0.0:
             next_q_vals = next_q_target_vals[k].data
             next_policy_vals = next_q_policy_vals[k].data
             if 'PRIOR' in info['IMPROVEMENT']:
-                #next_policy_vals += info['PRIOR_SCALE'] * prior_next_pi[k]
-                #print(prior_next_pi.size())
-                
-                #info['PRIOR_SCALE'] = 1+next_q_vals.max()/20
+                # add priors to the target value
                 next_q_vals += info['PRIOR_SCALE']*prior_next_pi[k].detach()
                 next_policy_vals += info['PRIOR_SCALE']*prior_next_pi[k].detach()
 
-                #next_q_vals *= info['PRIOR_SCALE']*prior_next_pi[k].detach()
-                #next_policy_vals *= info['PRIOR_SCALE']*prior_next_pi[k].detach()
 
             if info['DOUBLE_DQN']:
                 next_actions = next_policy_vals.max(1, True)[1]
@@ -282,7 +274,7 @@ def train(step_number, last_save):
 
                 replay_memory.add_experience(action=action,
                                                 frame=next_state[-1],
-                                                reward=np.sign(reward), # TODO -maybe there should be +1 here
+                                                reward=np.sign(reward),
                                                 terminal=life_lost,
                                                 active_head= active_head)
 
@@ -320,7 +312,6 @@ def train(step_number, last_save):
             last_save = handle_checkpoint(last_save, step_number)
 
             if not epoch_num%info['PLOT_EVERY_EPISODES'] and step_number > info['MIN_HISTORY_TO_LEARN']:
-                # TODO plot title
                 print('avg reward', perf['avg_rewards'][-1])
                 print('last rewards', perf['episode_reward'][-info['PLOT_EVERY_EPISODES']:])
 
@@ -344,7 +335,7 @@ def evaluate(step_number, highest_eval_score):
     frames_for_gif = []
     heads_chosen = [0]*info['N_ENSEMBLE']
 
-    # only run one
+    # use different seed for each eval
     for i in range(info['NUM_EVAL_EPISODES']):
         eval_env = Environment(rom_file=info['GAME'], frame_skip=info['FRAME_SKIP'],
                     num_frames=info['HISTORY_SIZE'], no_op_start=info['MAX_NO_OP_FRAMES'], rand_seed=np.random.randint(255),
@@ -362,12 +353,10 @@ def evaluate(step_number, highest_eval_score):
                 eps,action = action_getter.pt_get_action(step_number, state, active_head=active_head, evaluation=True)
                 heads_chosen = [x+y for x,y in zip(heads_chosen, eps)]
             next_state, reward, life_lost, terminal = eval_env.step(action)
-            # if next_state[-1].tobytes() not in eval_states:
-            #     eval_states.append(next_state[-1].tobytes())
             evaluate_step_number += 1
             episode_steps +=1
             episode_reward_sum += reward
-            # only save first episode
+            # only save the episode with highest scores
             frames_for_gif.append(eval_env.ale.getScreenRGB())
             if not episode_steps%100:
                 print('eval', episode_steps, episode_reward_sum)
@@ -400,7 +389,6 @@ if __name__ == '__main__':
 
     info = {
         "GAME":'roms/zaxxon.bin', # gym prefix
-        #"GAME":'roms/freeway.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "DUELING":False, # use dueling dqn
@@ -552,7 +540,6 @@ if __name__ == '__main__':
     #eval_states = []
     if args.model_loadpath is not '':
         # what about random states - they will be wrong now???
-        # TODO - what about target net update cnt
         target_net.load_state_dict(model_dict['target_net_state_dict'])
         policy_net.load_state_dict(model_dict['policy_net_state_dict'])
         opt.load_state_dict(model_dict['optimizer'])
