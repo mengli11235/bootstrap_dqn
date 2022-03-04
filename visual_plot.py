@@ -36,7 +36,7 @@ def plots_err(xs, ys, ystd, xlabel, ylabel, title, legends, loc="lower right", c
     plt.close()
 
 if __name__ == '__main__':
-    game_name = 'tennis'
+    game_name = 'krull'
     titile_name = string.capwords(game_name.replace("_", " "))
     path1 = '../bootstrap_results/model_savedir/' + game_name + '00/'+game_name+'_bestq.pkl'
     path2 = '../bootstrap_results/model_savedir/' + game_name + '01/'+game_name+'_bestq.pkl'
