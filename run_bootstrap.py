@@ -388,7 +388,7 @@ if __name__ == '__main__':
     print("running on %s"%device)
 
     info = {
-        "GAME":'roms/up_n_down.bin', # gym prefix
+        "GAME":'roms/wizard_of_wor.bin', # gym prefix
         "DEVICE":device, #cpu vs gpu set by argument
         "NAME":'FRANKbootstrap_fasteranneal_pong', # start files with name
         "DUELING":False, # use dueling dqn
